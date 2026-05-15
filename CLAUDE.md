@@ -2,8 +2,8 @@
 
 Context for Claude Code (and any other coding agent) when working on this repository.
 
-> **If you are a Sonnet/Opus/Haiku agent picking up this repo for the first time:**
-> read this file end-to-end **and** `backlog.yaml` **before touching any code**. The backlog is the machine-readable execution plan; this file holds the invariants and the rationale.
+> **If you are a Sonnet / Opus / Haiku / Gemini / other coding agent picking up this repo for the first time:**
+> read this file end-to-end **and** `backlog.yaml` **before touching any code**. The backlog is the machine-readable execution plan; this file holds the invariants and the rationale. If you were delegated a specific sub-task (not asked to drive the whole sprint), also read `AGENT_HANDOFF.md` — it scopes your assignment and lists what you must NOT touch.
 
 ---
 
@@ -92,6 +92,41 @@ Pathologies explicitly **out of scope for MVP**: vestibular neuritis, PPPD, vest
 4. **Type safety.** Every clinical input/output goes through Pydantic schemas. No `dict[str, Any]` in route signatures.
 5. **Deterministic before probabilistic.** Rule engine outputs are the source of truth for which diagnoses are candidates. Gemma explains and ranks but never invents diagnoses absent from the rule output.
 6. **Honest uncertainty.** Confidence levels are `alta` / `media` / `baja`. Never claim "definitive diagnosis" — this is a CDS (clinical decision support) tool, not a diagnostic device.
+7. **Model autoscaler is load-aware.** The default Gemma variant is `gemma4:e4b` (≈ 9.6 GB). The heavy `gemma4:26b-a4b-it-q4_K_M` (≈ 17 GB) is used *only* when `stroke_alert.triggered == true`, plus a `VERTIGODX_FORCE_HEAVY=1` override for demo recording. The single decision point is `pick_model()` in `app/llm.py` — do not introduce model selection logic elsewhere (and never route through the heavy model from the frontend).
+
+---
+
+## Load-aware model autoscaler (operational invariant)
+
+The reference dev machine is a Mac M4 with 24 GB of unified memory. Pinning the 17 GB `26b-a4b-it-q4_K_M` model in RAM for every request leaves the OS, editor, browser and recording tools fighting for ~6-7 GB of headroom — the system gets visibly laggy. The autoscaler exists to solve this.
+
+**Routing rules (in `pick_model()`):**
+
+| Condition | Model |
+|---|---|
+| `VERTIGODX_FORCE_HEAVY=1` env var set | `gemma4:26b-a4b-it-q4_K_M` |
+| `stroke_triggered == True` (otherwise) | `gemma4:26b-a4b-it-q4_K_M` |
+| default | `gemma4:e4b` |
+
+**Ollama service guardrails** (set via `launchctl setenv` and verified to be active on the dev machine):
+
+```bash
+OLLAMA_MAX_LOADED_MODELS=1   # loading one model auto-evicts the other
+OLLAMA_NUM_PARALLEL=1        # serialize inferences — never overlap big and small
+OLLAMA_KEEP_ALIVE=60s        # unload from RAM 60s after the last request
+OLLAMA_FLASH_ATTENTION=1     # default from brew, reduces KV cache pressure
+OLLAMA_KV_CACHE_TYPE=q8_0    # default from brew, quantizes KV cache
+```
+
+**When you modify `llm.py`:**
+- Keep `pick_model()` as the single decision function — do not duplicate selection logic in callers.
+- Always pass `stroke_triggered=stroke_alert.triggered` from `main.py` (or any new caller).
+- Preserve the fallback path that retries the light model on heavy-model exceptions.
+- If you add a new model tier, document it in the table above *and* in `README.md`'s autoscaler section.
+
+**When testing:**
+- Default tests should exercise `e4b` only (fast, low memory). The 26B path is exercised explicitly with the stroke demo case or via `VERTIGODX_FORCE_HEAVY=1 pytest`.
+- Never warm up the 26B model in `lifespan` startup hooks — only `e4b` warms up at startup.
 
 ---
 

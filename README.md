@@ -162,6 +162,42 @@ Expected result: `stroke_alert.triggered: true`, `urgency: "inmediata"`, Spanish
 
 ---
 
+## Load-aware model autoscaler
+
+VertigoDx runs on commodity hardware (the reference machine is a Mac M4 with 24 GB of unified memory). Keeping the 17 GB `gemma4:26b-a4b-it-q4_K_M` model hot in RAM for every request leaves too little headroom for the OS, the editor, the browser, and the recording tools — the demo machine becomes laggy.
+
+To keep the clinical quality high *and* the system responsive, the LLM client picks a Gemma variant per request:
+
+| Request profile | Model used | Why |
+|---|---|---|
+| Non-stroke case (`stroke_alert.triggered == false`) | `gemma4:e4b` (≈ 9.6 GB) | Fast, cheap, leaves plenty of RAM headroom. Clinical quality is sufficient for BPPV / Ménière / Vestibular Migraine cases. |
+| Stroke case (`stroke_alert.triggered == true`) | `gemma4:26b-a4b-it-q4_K_M` (≈ 17 GB) | Reserved for the cases where reasoning quality matters most — mortality risk decisions. |
+| `VERTIGODX_FORCE_HEAVY=1` set | Always the heavy model | Pin for video recording day, so the model on screen is consistent across all demo cases. |
+
+Two Ollama service settings act as guardrails so the two models never co-reside in RAM:
+
+```bash
+launchctl setenv OLLAMA_MAX_LOADED_MODELS 1   # loading 26b auto-evicts e4b first
+launchctl setenv OLLAMA_NUM_PARALLEL 1        # one inference at a time
+launchctl setenv OLLAMA_KEEP_ALIVE 60s        # unload from RAM 60s after the last request
+```
+
+Verify the autoscaler is enabled:
+
+```bash
+curl -s http://localhost:8000/healthcheck | jq
+# {
+#   "model_light": "gemma4:e4b",
+#   "model_heavy": "gemma4:26b-a4b-it-q4_K_M",
+#   "autoscaler": "stroke-triggered routes to heavy; otherwise light",
+#   "offline": true
+# }
+```
+
+The implementation lives in [`backend/app/llm.py`](backend/app/llm.py) — `pick_model()` is the single decision point. The triage layer (`triage.py`) decides whether the stroke flag is on; the LLM client then routes accordingly. No model selection logic leaks into the frontend.
+
+---
+
 ## See it in action
 
 The 3-minute demo walks through five real-world scenarios:
@@ -198,7 +234,8 @@ vertigoDx/
 ├── data/
 │   └── demo_cases.json     5 scripted clinical cases (the video script)
 ├── backlog.yaml            Machine-readable execution backlog (4-day plan)
-├── CLAUDE.md               Context for AI coding agents
+├── CLAUDE.md               Repository invariants for AI coding agents
+├── AGENT_HANDOFF.md        Scoped task assignment for delegated sub-agents
 ├── LICENSE                 Apache 2.0 (matches Gemma 4)
 └── README.md               You are here
 ```

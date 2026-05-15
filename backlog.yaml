@@ -49,6 +49,47 @@ global_invariants:
     rule: "Demo cases in data/demo_cases.json are ground truth. Never edit them to make a test pass."
   - id: G9
     rule: "Push directly to main with conventional commits. Speed > PRs during the hackathon only."
+  - id: G10
+    rule: "Model autoscaler: default to gemma4:e4b. Use gemma4:26b-a4b-it-q4_K_M ONLY when stroke_alert.triggered=true. Single decision point is pick_model() in backend/app/llm.py — do not duplicate model-selection logic in callers. The override is VERTIGODX_FORCE_HEAVY=1 (env var)."
+
+# ---------------------------------------------------------------------------
+# Runtime decisions — what was actually settled during Day 1 execution.
+# Future tasks must respect these constraints unless explicitly revisited.
+# ---------------------------------------------------------------------------
+runtime_decisions:
+  - id: RD1
+    decision: "Python 3.11 (not 3.13 or 3.14)"
+    reason: "chromadb has known compatibility issues on 3.13+; installing python@3.11 via brew avoided 90 minutes of yak-shaving."
+    artifacts: ["backend/pyproject.toml requires-python = >=3.11,<3.13"]
+  - id: RD2
+    decision: "Ollama models stored on external volume via symlink"
+    reason: "Keeps ~26 GB of model weights off the internal SSD. Created via: `mv ~/.ollama/models ~/.ollama/models.old.bak && ln -s /Volumes/MacMiniExt/dev/ollama/models ~/.ollama/models`."
+    paths:
+      - "/Volumes/MacMiniExt/dev/ollama/models  # actual storage"
+      - "~/.ollama/models                       # symlink (Ollama sees this)"
+  - id: RD3
+    decision: "Load-aware autoscaler: e4b primary, 26b only on stroke"
+    reason: "Mac M4 24GB unified memory: pinning 17GB for every request leaves <7GB for OS+editor+browser+OBS, causing visible lag. Heavy model is reserved for stroke cases where reasoning quality matters most."
+    implementation: "backend/app/llm.py::pick_model(stroke_triggered: bool) -> str"
+    env_overrides:
+      - "VERTIGODX_FORCE_HEAVY=1  # pin heavy model (use on Day 4 recording)"
+  - id: RD4
+    decision: "Ollama service guardrails set via launchctl setenv"
+    reason: "Defense in depth so the autoscaler logic cannot accidentally co-resident both models."
+    settings:
+      - "OLLAMA_MAX_LOADED_MODELS=1   # auto-evict previous model on load"
+      - "OLLAMA_NUM_PARALLEL=1        # one inference at a time"
+      - "OLLAMA_KEEP_ALIVE=60s        # unload from RAM after 60s idle"
+      - "OLLAMA_FLASH_ATTENTION=1     # brew default; reduces KV cache pressure"
+      - "OLLAMA_KV_CACHE_TYPE=q8_0    # brew default; quantizes KV cache"
+  - id: RD5
+    decision: "FastAPI lifespan warmup only warms the LIGHT model"
+    reason: "Warming 26b at startup defeats the autoscaler's purpose. Day-4 recording can pre-warm 26b manually via `curl -X POST /diagnose @stroke_case.json` before tape rolls."
+    implementation: "backend/app/main.py::lifespan calls ollama.chat(MODEL_LIGHT, ...) with num_predict=5"
+  - id: RD6
+    decision: "Ruff rule UP042 ignored project-wide"
+    reason: "We use `class X(str, Enum)` rather than `StrEnum` for cleaner Pydantic v2 serialization. The ruff suggestion to upgrade would trigger unnecessary Pydantic warnings."
+    artifacts: ["backend/pyproject.toml [tool.ruff.lint] ignore = ['E501', 'UP042']"]
 
 # ---------------------------------------------------------------------------
 # Milestones — coarse-grained day-level outcomes
@@ -115,7 +156,7 @@ tasks:
       - "`ollama run gemma4:26b-a4b-it-q4_K_M 'Hola, responde en español: ¿qué es BPPV?'` returns a Spanish response mentioning 'canal' or 'posicional' within 60 seconds"
     dependencies: []
     artifacts: []
-    status: pending
+    status: completed
 
   - id: D1-T02
     day: 1
@@ -140,7 +181,7 @@ tasks:
       - "backend/app/"
       - "backend/tests/"
       - "data/"
-    status: pending
+    status: completed
 
   - id: D1-T03
     day: 1
@@ -159,7 +200,7 @@ tasks:
       - "`backend/.venv/bin/python -c 'import fastapi, pydantic, chromadb, ollama'` exits 0"
       - "`backend/.venv/bin/python -c 'import pytest'` exits 0"
     dependencies: ["D1-T02"]
-    status: pending
+    status: completed
 
   - id: D1-T04
     day: 1
@@ -183,7 +224,7 @@ tasks:
       - "Confidence enum has exactly three values: alta, media, baja"
       - "StrokeAlert.urgency is constrained to literal('inmediata','alta','baja')"
     dependencies: ["D1-T03"]
-    status: pending
+    status: completed
 
   - id: D1-T05
     day: 1
@@ -208,7 +249,7 @@ tasks:
       - "For the canonical BPPV input, run_all_rules()[0].diagnosis starts with 'BPPV'"
       - "For a stroke-pattern input (cant_sit + neuro_red_flags + 3_or_more cv_risk), run_all_rules()[0].diagnosis contains 'Central' and confidence is 'alta'"
     dependencies: ["D1-T04"]
-    status: pending
+    status: completed
 
   - id: D1-T06
     day: 1
@@ -236,7 +277,7 @@ tasks:
       - "calculate_stroke_alert() on all-normal input returns triggered=False and urgency='baja'"
       - "Returned object is a StrokeAlert instance"
     dependencies: ["D1-T04"]
-    status: pending
+    status: completed
 
   - id: D1-T07
     day: 1
@@ -262,7 +303,7 @@ tasks:
       - "File contains the substrings 'Bárány', 'HINTS', 'STANDING', 'TiTrATE'"
       - "File contains at least one numbered criterion line (e.g. 'A.', 'B.')"
     dependencies: ["D1-T02"]
-    status: pending
+    status: completed
 
   - id: D1-T08
     day: 1
@@ -283,7 +324,7 @@ tasks:
     acceptance_criteria:
       - "`python -c 'from app.rag import get_store; s = get_store(); r = s.retrieve(\"BPPV criterios\", k=2); assert len(r) == 2 and \"BPPV\" in r[0][\"title\"]'` exits 0"
     dependencies: ["D1-T03", "D1-T07"]
-    status: pending
+    status: completed
 
   - id: D1-T09
     day: 1
@@ -307,7 +348,7 @@ tasks:
       - "SYSTEM_PROMPT_V1 contains the substring 'español' and 'ICVD'"
       - "build_user_prompt('a','b','c','d') returns a string containing all four inputs"
     dependencies: ["D1-T03"]
-    status: pending
+    status: completed
 
   - id: D1-T10
     day: 1
@@ -328,7 +369,7 @@ tasks:
       - "Calling reason_clinically with placeholder strings returns a dict containing the keys clinical_reasoning, next_steps, limitations"
       - "Output is in Spanish (clinical_reasoning contains a vowel-bearing accented char or common Spanish stopword: á|é|í|ó|ú|qué|del|para|con)"
     dependencies: ["D1-T01", "D1-T09"]
-    status: pending
+    status: completed
 
   - id: D1-T11
     day: 1
@@ -360,7 +401,7 @@ tasks:
       - "`curl http://localhost:8000/healthcheck` returns 200 with offline=true"
       - "POST /diagnose with the stroke payload (D1-T06 example) returns HTTP 200, stroke_alert.triggered=true, urgency='inmediata'"
     dependencies: ["D1-T05", "D1-T06", "D1-T08", "D1-T10"]
-    status: pending
+    status: completed
 
   - id: D1-T12
     day: 1
@@ -386,7 +427,7 @@ tasks:
       - "case_04_stroke_cerebeloso has expected_stroke_alert=true and expected_urgency='inmediata'"
       - "case_01_bppv_clasico has expected_stroke_alert=false"
     dependencies: ["D1-T04"]
-    status: pending
+    status: completed
 
   - id: D1-T13
     day: 1
@@ -407,7 +448,7 @@ tasks:
     acceptance_criteria:
       - "`cd backend && pytest -v` exits 0 with at least 5 passing tests"
     dependencies: ["D1-T05", "D1-T06", "D1-T12"]
-    status: pending
+    status: completed
 
   - id: D1-T14
     day: 1
@@ -426,7 +467,7 @@ tasks:
       - "`git log --oneline -1` shows the day-1 commit message"
       - "`git status` is clean for tracked files"
     dependencies: ["D1-T11", "D1-T13"]
-    status: pending
+    status: completed
 
   # =========================================================================
   # DAY 2 — Prompt refinement + frontend scaffold
