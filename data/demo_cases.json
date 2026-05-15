@@ -1,0 +1,99 @@
+[
+  {
+    "id": "case_01_bppv_clasico",
+    "label": "BPPV del canal posterior — caso típico",
+    "narrative": "Mujer de 52 años, vértigo rotatorio breve al girarse en cama esta mañana. Sin hipoacusia. Náusea leve.",
+    "responses": {
+      "episode_duration": "under_1min",
+      "trigger": "position_change",
+      "hearing_status": "none",
+      "migraine_history": "none",
+      "nausea_vomiting": "nausea_only",
+      "age_bracket": "40_60",
+      "onset": "sudden",
+      "gait": "normal",
+      "neuro_red_flags": false,
+      "cv_risk": "none"
+    },
+    "expected_top": "BPPV del canal posterior",
+    "expected_stroke_alert": false
+  },
+  {
+    "id": "case_02_meniere",
+    "label": "Enfermedad de Ménière probable",
+    "narrative": "Hombre de 47 años, tercer episodio de vértigo de 3 horas con hipoacusia fluctuante de baja frecuencia en oído izquierdo y tinnitus.",
+    "responses": {
+      "episode_duration": "1_to_24h",
+      "trigger": "spontaneous",
+      "hearing_status": "fluctuating",
+      "migraine_history": "none",
+      "nausea_vomiting": "vomiting",
+      "age_bracket": "40_60",
+      "onset": "progressive",
+      "gait": "unstable",
+      "neuro_red_flags": false,
+      "cv_risk": "1_to_2"
+    },
+    "expected_top": "Enfermedad de Ménière",
+    "expected_stroke_alert": false
+  },
+  {
+    "id": "case_03_migrana_vestibular",
+    "label": "Migraña vestibular",
+    "narrative": "Mujer de 38 años, 6 episodios en 2 años de vértigo de 4-6 horas con fotofobia y cefalea pulsátil unilateral. Migrañas conocidas desde los 20 años.",
+    "responses": {
+      "episode_duration": "2min_to_1h",
+      "trigger": "spontaneous",
+      "hearing_status": "none",
+      "migraine_history": "frequent",
+      "nausea_vomiting": "nausea_only",
+      "age_bracket": "under_40",
+      "onset": "progressive",
+      "gait": "normal",
+      "neuro_red_flags": false,
+      "cv_risk": "none"
+    },
+    "expected_top": "Migraña Vestibular",
+    "expected_stroke_alert": false
+  },
+  {
+    "id": "case_04_stroke_cerebeloso",
+    "label": "Stroke cerebeloso — el caso dramático",
+    "narrative": "Hombre de 68 años con HTA, diabetes y tabaquismo. Vértigo súbito hace 2 horas, no puede sentarse sin caer, cefalea occipital nueva y visión doble intermitente.",
+    "responses": {
+      "episode_duration": "over_24h",
+      "trigger": "spontaneous",
+      "hearing_status": "none",
+      "migraine_history": "none",
+      "nausea_vomiting": "vomiting",
+      "age_bracket": "60_75",
+      "onset": "sudden",
+      "gait": "cant_sit",
+      "neuro_red_flags": true,
+      "cv_risk": "3_or_more"
+    },
+    "expected_top": "Vértigo Central (sospecha de stroke)",
+    "expected_stroke_alert": true,
+    "expected_urgency": "inmediata"
+  },
+  {
+    "id": "case_05_caso_complejo_overlap",
+    "label": "Comorbilidad VM + EM (caso complejo)",
+    "narrative": "Mujer de 54 años con vértigo episódico de 1-3 horas, hipoacusia fluctuante de baja frecuencia y cefaleas migrañosas frecuentes. Difícil de clasificar.",
+    "responses": {
+      "episode_duration": "1_to_24h",
+      "trigger": "spontaneous",
+      "hearing_status": "fluctuating",
+      "migraine_history": "frequent",
+      "nausea_vomiting": "nausea_only",
+      "age_bracket": "40_60",
+      "onset": "progressive",
+      "gait": "normal",
+      "neuro_red_flags": false,
+      "cv_risk": "none"
+    },
+    "expected_top_options": ["Enfermedad de Ménière", "Migraña Vestibular"],
+    "expected_stroke_alert": false,
+    "note": "Caso que muestra el valor del razonamiento LLM — la comorbilidad VM + EM está explícitamente permitida en ICVD"
+  }
+]
