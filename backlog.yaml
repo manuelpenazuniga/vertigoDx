@@ -1,0 +1,1148 @@
+# =============================================================================
+# VertigoDx — Hackathon Execution Backlog
+# =============================================================================
+# Machine-readable task list for the 4-day Gemma 4 Good Hackathon sprint.
+# Designed to be consumed by AI coding agents (Sonnet 4.6 and equivalents)
+# that pick up the next `pending` task whose dependencies are `completed`.
+#
+# Conventions:
+#   - Status lifecycle: pending -> in_progress -> completed (or blocked)
+#   - Task IDs:         D{day}-T{nn}  (e.g. D1-T03)
+#   - All commands are non-interactive unless explicitly noted
+#   - Artifacts use repo-relative paths
+#   - "must_match" assertions in acceptance criteria are regex/substring tests
+#   - Agents MUST mark a task as completed only when EVERY acceptance criterion
+#     passes; if blocked, set status: blocked and add a `blocker` field
+# =============================================================================
+
+project: vertigodx
+version: 1.0
+generated_at: 2026-05-15
+deadline_utc: 2026-05-18T23:59:00Z
+target_submit_utc: 2026-05-17T23:59:00Z   # 24h buffer before deadline
+hackathon_url: https://www.kaggle.com/competitions/gemma-4-good-hackathon
+target_tracks:
+  - "Impact Track — Health & Sciences ($10K)"
+  - "Special Tech Track — Ollama ($10K)"
+  - "Main Track (stretch)"
+
+# ---------------------------------------------------------------------------
+# Global invariants — apply to EVERY task. An agent that violates these
+# must revert its change and re-plan, not push forward.
+# ---------------------------------------------------------------------------
+global_invariants:
+  - id: G1
+    rule: "All clinical UX text is in Spanish (questions, reasoning, alerts, next steps, limitations)."
+  - id: G2
+    rule: "All code, comments, commit messages and public docs are in English."
+  - id: G3
+    rule: "100% local execution. No external API calls in the request path. Ollama at localhost:11434 is the only external process."
+  - id: G4
+    rule: "Three-layer architecture with graceful degradation: rules engine -> RAG -> Gemma. The LLM never invents diagnoses absent from rule output."
+  - id: G5
+    rule: "Pydantic schemas on every clinical I/O. No `dict[str, Any]` in route signatures."
+  - id: G6
+    rule: "Confidence values are exactly `alta` | `media` | `baja`. Never claim 'definitive diagnosis'."
+  - id: G7
+    rule: "Never commit anything under docs/ or resources/. They are gitignored on purpose."
+  - id: G8
+    rule: "Demo cases in data/demo_cases.json are ground truth. Never edit them to make a test pass."
+  - id: G9
+    rule: "Push directly to main with conventional commits. Speed > PRs during the hackathon only."
+
+# ---------------------------------------------------------------------------
+# Milestones — coarse-grained day-level outcomes
+# ---------------------------------------------------------------------------
+milestones:
+  - id: M1
+    day: 1
+    name: "Backend foundations"
+    outcome: "Ollama + models pulled, deterministic rule engine + triage + RAG + Gemma client all functional; FastAPI returns a clinically correct stroke result via curl."
+  - id: M2
+    day: 2
+    name: "Clinical-grade prompts + frontend scaffold"
+    outcome: "All 5 demo cases pass end-to-end with Spanish reasoning that cites ICVD criteria; Next.js 14 + shadcn scaffold renders the landing page."
+  - id: M3
+    day: 3
+    name: "UI polish + deploy"
+    outcome: "Questionnaire wizard + result panel finished; stroke alert visually dramatic; one-click demo cases page; deploy reachable from a public URL."
+  - id: M4
+    day: 4
+    name: "Video + writeup + submit"
+    outcome: "YouTube video <=3 min public; Kaggle writeup <=1500 words submitted in Impact Track Health & Sciences with cover image, repo link, and live demo link."
+
+# ---------------------------------------------------------------------------
+# Pathologies in MVP scope (do not expand without explicit instruction)
+# ---------------------------------------------------------------------------
+mvp_pathologies:
+  - "BPPV (posterior canal)"
+  - "Vestibular Migraine"
+  - "Ménière's Disease"
+  - "Central Vertigo (stroke)"
+
+out_of_scope_pathologies:
+  - "Vestibular neuritis"
+  - "PPPD"
+  - "Vestibular paroxysmia"
+  - "Perilymphatic fistula"
+  - "Superior canal dehiscence"
+  - "Orthostatic dizziness"
+
+# ===========================================================================
+# DAY 1 — Backend foundations
+# ===========================================================================
+tasks:
+
+  - id: D1-T01
+    day: 1
+    milestone: M1
+    title: "Install Ollama and pull Gemma 4 + embeddings models"
+    type: setup
+    estimated_minutes: 45
+    description: |
+      Install Ollama as a brew service and pull the three models the MVP depends on:
+      gemma4:26b-a4b-it-q4_K_M (primary clinical reasoner), gemma4:e4b (fallback for
+      lower-memory hosts), and nomic-embed-text (RAG embeddings).
+    commands:
+      - "brew install ollama"
+      - "brew services start ollama"
+      - "ollama pull gemma4:26b-a4b-it-q4_K_M"
+      - "ollama pull gemma4:e4b"
+      - "ollama pull nomic-embed-text"
+      - "ollama list"
+    acceptance_criteria:
+      - "`ollama list` output contains all three model names"
+      - "`ollama run gemma4:26b-a4b-it-q4_K_M 'Hola, responde en español: ¿qué es BPPV?'` returns a Spanish response mentioning 'canal' or 'posicional' within 60 seconds"
+    dependencies: []
+    artifacts: []
+    status: pending
+
+  - id: D1-T02
+    day: 1
+    milestone: M1
+    title: "Initialize repo structure (backend, frontend, data directories)"
+    type: scaffold
+    estimated_minutes: 15
+    description: |
+      Create the directory tree expected by every downstream task. Files are
+      created empty here; their content is written by later tasks.
+    commands:
+      - "mkdir -p backend/app/data backend/tests backend/scripts data frontend"
+      - "touch backend/app/__init__.py backend/app/main.py backend/app/rules.py backend/app/triage.py backend/app/rag.py backend/app/llm.py backend/app/prompts.py backend/app/schemas.py"
+      - "touch backend/tests/__init__.py backend/tests/test_rules.py backend/tests/test_triage.py backend/tests/test_demo_cases.py"
+      - "touch backend/app/data/icvd_corpus.md"
+      - "touch data/demo_cases.json"
+    acceptance_criteria:
+      - "`find backend -type f -name '*.py' | wc -l` returns >= 9"
+      - "`ls data/demo_cases.json backend/app/data/icvd_corpus.md` succeeds"
+    dependencies: []
+    artifacts:
+      - "backend/app/"
+      - "backend/tests/"
+      - "data/"
+    status: pending
+
+  - id: D1-T03
+    day: 1
+    milestone: M1
+    title: "Create backend pyproject.toml and bootstrap virtualenv"
+    type: setup
+    estimated_minutes: 20
+    description: |
+      Backend dependencies: fastapi, uvicorn[standard], pydantic>=2.6, ollama,
+      chromadb, httpx, python-multipart. Dev: pytest>=8, pytest-asyncio, ruff.
+      Use Python 3.11 (chromadb has known issues on 3.13 as of plan date).
+    artifacts:
+      - "backend/pyproject.toml"
+    acceptance_criteria:
+      - "`backend/.venv` exists"
+      - "`backend/.venv/bin/python -c 'import fastapi, pydantic, chromadb, ollama'` exits 0"
+      - "`backend/.venv/bin/python -c 'import pytest'` exits 0"
+    dependencies: ["D1-T02"]
+    status: pending
+
+  - id: D1-T04
+    day: 1
+    milestone: M1
+    title: "Implement Pydantic schemas (schemas.py)"
+    type: code
+    estimated_minutes: 45
+    description: |
+      Define the typed input/output contract for the API.
+      Inputs: PatientResponses with 10 fields covering episode_duration, trigger,
+      hearing_status, migraine_history, nausea_vomiting, age_bracket, onset,
+      gait, neuro_red_flags (bool), cv_risk. Use string Enums for categorical fields.
+      Outputs: DiagnosisCandidate (diagnosis, confidence enum, supporting_criteria,
+      missing_criteria, icvd_reference), StrokeAlert (triggered, reason, urgency
+      literal, score_hints, score_standing), DiagnosticResult (differential list,
+      stroke_alert, clinical_reasoning, next_steps, limitations, processing_time_ms).
+    artifacts:
+      - "backend/app/schemas.py"
+    acceptance_criteria:
+      - "`python -c 'from app.schemas import PatientResponses, DiagnosticResult, StrokeAlert; print(PatientResponses.model_fields.keys())'` lists all 10 fields"
+      - "Confidence enum has exactly three values: alta, media, baja"
+      - "StrokeAlert.urgency is constrained to literal('inmediata','alta','baja')"
+    dependencies: ["D1-T03"]
+    status: pending
+
+  - id: D1-T05
+    day: 1
+    milestone: M1
+    title: "Implement deterministic ICVD rule engine (rules.py)"
+    type: code
+    estimated_minutes: 90
+    description: |
+      Four evaluators returning DiagnosisCandidate each:
+        evaluate_bppv_posterior, evaluate_vestibular_migraine,
+        evaluate_meniere, evaluate_central_vertigo.
+      Plus run_all_rules() returning the list sorted by confidence (alta > media > baja).
+      Encode ICVD criteria A/B/C/D where applicable; track supporting and
+      missing criteria per candidate. icvd_reference must cite the Bárány Society
+      year (2015 for BPPV/EM, 2012 for VM).
+      Central vertigo uses HINTS+Carmona&Kaski+GRACE-3 (no single ICVD code).
+    artifacts:
+      - "backend/app/rules.py"
+    acceptance_criteria:
+      - "All four evaluator functions return a valid DiagnosisCandidate for the canonical BPPV input (under_1min, position_change, none hearing, no red flags)"
+      - "run_all_rules() returns a list of length 4"
+      - "For the canonical BPPV input, run_all_rules()[0].diagnosis starts with 'BPPV'"
+      - "For a stroke-pattern input (cant_sit + neuro_red_flags + 3_or_more cv_risk), run_all_rules()[0].diagnosis contains 'Central' and confidence is 'alta'"
+    dependencies: ["D1-T04"]
+    status: pending
+
+  - id: D1-T06
+    day: 1
+    milestone: M1
+    title: "Implement HINTS-adapted triage scoring (triage.py)"
+    type: code
+    estimated_minutes: 45
+    description: |
+      Function calculate_stroke_alert(PatientResponses) -> StrokeAlert.
+      Weighted score:
+        - gait=cant_sit: +100 (specificity 100% per Carmona&Kaski 2023)
+        - neuro_red_flags=True: +80
+        - onset=sudden: +30
+        - cv_risk=3_or_more: +25; 1_to_2: +10
+        - age_bracket=over_75: +15; 60_75: +8
+      Thresholds: score>=100 -> triggered, urgency='inmediata';
+                  score>=50  -> triggered, urgency='alta';
+                  score>=25  -> not triggered, urgency='baja' (with low-risk reason);
+                  else       -> not triggered, urgency='baja', reason='Sin signos de alarma central'.
+      score_standing label: 'POSITIVO' if score>=50 else 'NEGATIVO'.
+    artifacts:
+      - "backend/app/triage.py"
+    acceptance_criteria:
+      - "calculate_stroke_alert() on cant_sit input returns triggered=True and urgency='inmediata'"
+      - "calculate_stroke_alert() on all-normal input returns triggered=False and urgency='baja'"
+      - "Returned object is a StrokeAlert instance"
+    dependencies: ["D1-T04"]
+    status: pending
+
+  - id: D1-T07
+    day: 1
+    milestone: M1
+    title: "Author initial ICVD RAG corpus (icvd_corpus.md)"
+    type: content
+    estimated_minutes: 60
+    description: |
+      Markdown file with H2-delimited sections, one per clinical topic:
+        - BPPV del canal posterior
+        - Enfermedad de Ménière
+        - Migraña Vestibular
+        - Algoritmo HINTS+
+        - STANDING
+        - Red Flags Críticas
+        - TiTrATE Framework
+      Each section cites the source (Bárány Society year, journal author).
+      Spanish content. Plain markdown, no front-matter.
+    artifacts:
+      - "backend/app/data/icvd_corpus.md"
+    acceptance_criteria:
+      - "File has >= 7 H2 sections (lines matching '^## ')"
+      - "File contains the substrings 'Bárány', 'HINTS', 'STANDING', 'TiTrATE'"
+      - "File contains at least one numbered criterion line (e.g. 'A.', 'B.')"
+    dependencies: ["D1-T02"]
+    status: pending
+
+  - id: D1-T08
+    day: 1
+    milestone: M1
+    title: "Implement RAG layer with ChromaDB + nomic-embed-text (rag.py)"
+    type: code
+    estimated_minutes: 60
+    description: |
+      Class RAGStore with:
+        - in-memory ChromaDB client, collection name 'vertigodx_icvd'
+        - _chunk_markdown: split corpus by H2, return [(title, content), ...]
+        - _embed(text): call ollama.embeddings(model='nomic-embed-text', prompt=text)
+        - _ingest(): drop+recreate collection, add all chunks with their embeddings
+        - retrieve(query: str, k: int = 3) -> list[{'title','content','distance'}]
+      Module-level singleton get_store() for FastAPI lifecycle.
+    artifacts:
+      - "backend/app/rag.py"
+    acceptance_criteria:
+      - "`python -c 'from app.rag import get_store; s = get_store(); r = s.retrieve(\"BPPV criterios\", k=2); assert len(r) == 2 and \"BPPV\" in r[0][\"title\"]'` exits 0"
+    dependencies: ["D1-T03", "D1-T07"]
+    status: pending
+
+  - id: D1-T09
+    day: 1
+    milestone: M1
+    title: "Write versioned system prompt v1 (prompts.py)"
+    type: code
+    estimated_minutes: 30
+    description: |
+      SYSTEM_PROMPT_V1 string enforces:
+        - Spanish clinical output only
+        - never definitive diagnosis
+        - always cite ICVD criteria
+        - urgent referral if stroke flags trigger
+        - JSON-only output with keys clinical_reasoning, next_steps, limitations
+      build_user_prompt(responses_summary, rule_candidates, stroke_alert, rag_context) -> str
+      concatenates the four sections with markdown headers.
+    artifacts:
+      - "backend/app/prompts.py"
+    acceptance_criteria:
+      - "`from app.prompts import SYSTEM_PROMPT_V1, build_user_prompt` imports cleanly"
+      - "SYSTEM_PROMPT_V1 contains the substring 'español' and 'ICVD'"
+      - "build_user_prompt('a','b','c','d') returns a string containing all four inputs"
+    dependencies: ["D1-T03"]
+    status: pending
+
+  - id: D1-T10
+    day: 1
+    milestone: M1
+    title: "Implement Gemma 4 client (llm.py)"
+    type: code
+    estimated_minutes: 60
+    description: |
+      reason_clinically(responses_summary, rule_candidates, stroke_alert,
+        rag_context, model='gemma4:26b-a4b-it-q4_K_M', temperature=0.3) -> dict.
+      Calls ollama.chat with format='json', temperature=0.3, top_p=0.95,
+      top_k=64, num_ctx=8192. Parses JSON; on json.JSONDecodeError tries
+      a `\\{.*\\}` regex fallback. On other exceptions, retries once with
+      gemma4:e4b before raising.
+    artifacts:
+      - "backend/app/llm.py"
+    acceptance_criteria:
+      - "Calling reason_clinically with placeholder strings returns a dict containing the keys clinical_reasoning, next_steps, limitations"
+      - "Output is in Spanish (clinical_reasoning contains a vowel-bearing accented char or common Spanish stopword: á|é|í|ó|ú|qué|del|para|con)"
+    dependencies: ["D1-T01", "D1-T09"]
+    status: pending
+
+  - id: D1-T11
+    day: 1
+    milestone: M1
+    title: "Wire FastAPI app with /healthcheck, /diagnose (main.py)"
+    type: code
+    estimated_minutes: 60
+    description: |
+      FastAPI app with CORS allowing http://localhost:3000.
+      Endpoints:
+        GET /healthcheck -> {"status":"ok","model":"gemma4:26b-a4b-it-q4_K_M","offline":true}
+        POST /diagnose: PatientResponses -> DiagnosticResult.
+      /diagnose pipeline:
+        1. candidates = run_all_rules(responses)
+        2. alert = calculate_stroke_alert(responses)
+        3. rag_chunks = get_store().retrieve(f"{candidates[0].diagnosis} {candidates[1].diagnosis} criterios", k=3)
+        4. llm_out = reason_clinically(..., rag_context=joined chunk contents)
+        5. return DiagnosticResult(differential=candidates[:3], stroke_alert=alert,
+             clinical_reasoning=llm_out['clinical_reasoning'],
+             next_steps=llm_out['next_steps'],
+             limitations=llm_out['limitations'],
+             processing_time_ms=measured)
+      Helper formatters _format_responses_for_llm, _format_candidates_for_llm,
+      _format_stroke_alert produce the human-readable strings injected into the prompt.
+    artifacts:
+      - "backend/app/main.py"
+    acceptance_criteria:
+      - "`uvicorn app.main:app --port 8000` starts without error within 60s (including RAG ingest)"
+      - "`curl http://localhost:8000/healthcheck` returns 200 with offline=true"
+      - "POST /diagnose with the stroke payload (D1-T06 example) returns HTTP 200, stroke_alert.triggered=true, urgency='inmediata'"
+    dependencies: ["D1-T05", "D1-T06", "D1-T08", "D1-T10"]
+    status: pending
+
+  - id: D1-T12
+    day: 1
+    milestone: M1
+    title: "Write 5 demo cases as JSON ground truth"
+    type: content
+    estimated_minutes: 45
+    description: |
+      data/demo_cases.json — array of 5 objects, ids:
+        case_01_bppv_clasico
+        case_02_meniere
+        case_03_migrana_vestibular
+        case_04_stroke_cerebeloso
+        case_05_caso_complejo_overlap
+      Each object: id, label, narrative (Spanish, 1-2 sentences), responses (full
+      10-field PatientResponses payload), expected_top (string) or expected_top_options
+      (list), expected_stroke_alert (bool), optional expected_urgency.
+    artifacts:
+      - "data/demo_cases.json"
+    acceptance_criteria:
+      - "`jq 'length' data/demo_cases.json` returns 5"
+      - "`jq '[.[] | .id]' data/demo_cases.json` contains all 5 expected ids"
+      - "case_04_stroke_cerebeloso has expected_stroke_alert=true and expected_urgency='inmediata'"
+      - "case_01_bppv_clasico has expected_stroke_alert=false"
+    dependencies: ["D1-T04"]
+    status: pending
+
+  - id: D1-T13
+    day: 1
+    milestone: M1
+    title: "Write rule and triage unit tests + demo case ground-truth tests"
+    type: test
+    estimated_minutes: 45
+    description: |
+      backend/tests/test_demo_cases.py covers:
+        - test_all_cases_parseable: every case loads into PatientResponses
+        - test_bppv_classic_detected: rule top-1 for case_01 == 'BPPV del canal posterior'
+        - test_stroke_alert_triggers: alert for case_04 is triggered and urgency='inmediata'
+        - test_meniere_high_confidence_with_fluctuating: case_02 Ménière confidence in {alta, media}
+        - test_no_false_stroke_alarm_in_bppv: case_01 alert.triggered=false
+      Run via `cd backend && pytest -v`.
+    artifacts:
+      - "backend/tests/test_demo_cases.py"
+    acceptance_criteria:
+      - "`cd backend && pytest -v` exits 0 with at least 5 passing tests"
+    dependencies: ["D1-T05", "D1-T06", "D1-T12"]
+    status: pending
+
+  - id: D1-T14
+    day: 1
+    milestone: M1
+    title: "Day 1 closing commit"
+    type: chore
+    estimated_minutes: 10
+    description: |
+      Stage backend/, data/demo_cases.json. Conventional commit on main.
+      Do NOT stage docs/ or resources/ (gitignored).
+    commands:
+      - "git add backend data backlog.yaml"
+      - "git commit -m 'feat(backend): day 1 — rule engine, triage, RAG, Gemma client, FastAPI baseline'"
+      - "git push origin main"
+    acceptance_criteria:
+      - "`git log --oneline -1` shows the day-1 commit message"
+      - "`git status` is clean for tracked files"
+    dependencies: ["D1-T11", "D1-T13"]
+    status: pending
+
+  # =========================================================================
+  # DAY 2 — Prompt refinement + frontend scaffold
+  # =========================================================================
+
+  - id: D2-T01
+    day: 2
+    milestone: M2
+    title: "Morning checkpoint — verify Day 1 still green"
+    type: chore
+    estimated_minutes: 30
+    description: |
+      Sanity-check that Day 1 artifacts still pass after any environment
+      changes overnight (Ollama restart, OS reboot, etc.).
+    commands:
+      - "ollama list | grep -q gemma4"
+      - "cd backend && pytest -v"
+      - "cd backend && uvicorn app.main:app --port 8000 &"
+      - "sleep 2 && curl -fsS http://localhost:8000/healthcheck"
+    acceptance_criteria:
+      - "All Day 1 tests pass"
+      - "/healthcheck returns 200 offline=true"
+    dependencies: ["D1-T14"]
+    status: pending
+
+  - id: D2-T02
+    day: 2
+    milestone: M2
+    title: "Build prompt-evaluation script (scripts/eval_prompts.py)"
+    type: code
+    estimated_minutes: 45
+    description: |
+      Runner that takes a prompt_version (v1, v2, v3, ...) as argv and
+      executes the 5 demo cases through the full pipeline, printing
+      expected_top vs actual_top, expected_stroke_alert vs actual,
+      and the LLM reasoning, next_steps, limitations side-by-side.
+      No assertions — this is for human review during prompt iteration.
+    artifacts:
+      - "backend/scripts/eval_prompts.py"
+    acceptance_criteria:
+      - "`cd backend && python scripts/eval_prompts.py v1` runs all 5 cases without exception and prints each case_id"
+    dependencies: ["D2-T01"]
+    status: pending
+
+  - id: D2-T03
+    day: 2
+    milestone: M2
+    title: "Iterate prompt to SYSTEM_PROMPT_V2 with strict Spanish + ICVD citation rules"
+    type: code
+    estimated_minutes: 90
+    description: |
+      Add SYSTEM_PROMPT_V2 to prompts.py. Stricter than V1:
+        - explicit prohibition of English clinical loanwords ('stroke', 'follow-up', 'imaging')
+        - mandatory ICVD criterion letter citation when applicable
+        - first sentence MUST be the stroke recommendation when alert triggered
+        - max 5 sentences in clinical_reasoning
+      Swap llm.py to use V2 once it passes review on all 5 cases.
+    artifacts:
+      - "backend/app/prompts.py"
+      - "backend/app/llm.py"
+    acceptance_criteria:
+      - "All 5 demo cases run via eval_prompts.py v2 with reasoning that does NOT contain 'stroke', 'follow-up', or 'imaging' (case-insensitive)"
+      - "Case 04 reasoning's first 50 chars contain 'derivación' or 'urgente' or '⚠'"
+    dependencies: ["D2-T02"]
+    status: pending
+
+  - id: D2-T04
+    day: 2
+    milestone: M2
+    title: "(Optional) Add few-shot examples => SYSTEM_PROMPT_V3"
+    type: code
+    estimated_minutes: 60
+    description: |
+      Optional escalation if V2 still produces inconsistent reasoning across
+      runs (temperature variance). Append 2 worked examples (BPPV classic +
+      stroke cerebeloso) directly into the system prompt.
+    artifacts:
+      - "backend/app/prompts.py"
+    acceptance_criteria:
+      - "SYSTEM_PROMPT_V3 exists and is composed as SYSTEM_PROMPT_V2 + FEW_SHOT_EXAMPLES"
+      - "eval_prompts.py v3 runs without exception"
+    dependencies: ["D2-T03"]
+    optional: true
+    status: pending
+
+  - id: D2-T05
+    day: 2
+    milestone: M2
+    title: "Expand RAG corpus with maneuvers + differential table + red flags"
+    type: content
+    estimated_minutes: 60
+    description: |
+      Append to icvd_corpus.md:
+        - Dix-Hallpike, Roll Test, Epley maneuver descriptions
+        - differential table for acute sustained vertigo
+        - empirical treatment summary
+        - critical red flags consolidated list
+      Re-ingestion happens automatically on FastAPI restart.
+    artifacts:
+      - "backend/app/data/icvd_corpus.md"
+    acceptance_criteria:
+      - "File line count grows by >= 50 lines vs Day 1 baseline"
+      - "File contains the substrings 'Dix-Hallpike', 'Epley', 'AICA'"
+    dependencies: ["D1-T07"]
+    status: pending
+
+  - id: D2-T06
+    day: 2
+    milestone: M2
+    title: "Add /diagnose/stream and /demo-cases endpoints + warmup"
+    type: code
+    estimated_minutes: 60
+    description: |
+      In backend/app/main.py:
+        - GET /demo-cases: returns the parsed contents of data/demo_cases.json
+        - POST /diagnose/stream: Server-Sent Events stream that emits
+          {stage:'rules'|'triage'|'rag'|'reasoning'|'complete', payload:...}
+          so the UI can show progressive feedback during the 3-5s Gemma call.
+        - @app.on_event('startup') warmup: do a 5-token ollama.chat to load 26B into RAM.
+    artifacts:
+      - "backend/app/main.py"
+    acceptance_criteria:
+      - "`curl http://localhost:8000/demo-cases | jq 'length'` returns 5"
+      - "After server startup, the first `curl POST /diagnose` returns within 8 seconds (warmup happened)"
+    dependencies: ["D2-T03"]
+    status: pending
+
+  - id: D2-T07
+    day: 2
+    milestone: M2
+    title: "End-to-end tests against the running API (test_e2e.py)"
+    type: test
+    estimated_minutes: 60
+    description: |
+      backend/tests/test_e2e.py uses httpx to hit localhost:8000.
+      pytest-parametrize over the 5 case_ids:
+        - status 200
+        - response has differential, stroke_alert, clinical_reasoning, next_steps
+        - clinical_reasoning length > 20
+        - clinical_reasoning does NOT contain English clinical terms
+        - expected_stroke_alert matches actual
+        - expected_top is a substring of differential[0].diagnosis when defined
+      Fixture skips the module if API is not running on 8000.
+    artifacts:
+      - "backend/tests/test_e2e.py"
+    acceptance_criteria:
+      - "With uvicorn running, `pytest backend/tests/test_e2e.py -v` passes all 5 parametrized cases"
+    dependencies: ["D2-T06"]
+    status: pending
+
+  - id: D2-T08
+    day: 2
+    milestone: M2
+    title: "Bootstrap Next.js 14 frontend with shadcn/ui"
+    type: scaffold
+    estimated_minutes: 45
+    description: |
+      Use create-next-app with: typescript, tailwind, app router, no src dir,
+      import alias @/*. Then initialize shadcn/ui with Default style + Slate
+      base color + CSS variables. Install components: button, card, progress,
+      radio-group, select, badge, alert, separator, label. Install
+      framer-motion and lucide-react.
+    commands:
+      - "npx create-next-app@latest frontend --typescript --tailwind --app --no-src-dir --import-alias '@/*' --use-npm --eslint --no-turbopack"
+      - "cd frontend && npx shadcn@latest init -d"
+      - "cd frontend && npx shadcn@latest add button card progress radio-group select badge alert separator label"
+      - "cd frontend && npm install framer-motion lucide-react"
+    acceptance_criteria:
+      - "frontend/package.json exists and includes next, react, framer-motion, lucide-react in dependencies"
+      - "frontend/components/ui/button.tsx exists"
+      - "`cd frontend && npm run build` exits 0"
+    dependencies: ["D2-T01"]
+    status: pending
+
+  - id: D2-T09
+    day: 2
+    milestone: M2
+    title: "Landing page + OfflineBadge + Spanish metadata"
+    type: code
+    estimated_minutes: 60
+    description: |
+      frontend/app/layout.tsx: lang='es', metadata title 'VertigoDx — Privacy-First Vestibular Diagnosis AI'.
+      frontend/app/page.tsx: landing with hero (h1 VertigoDx, subtitle in Spanish),
+        two CTAs ('Ver casos demo' -> /demo, 'Iniciar evaluación' -> /diagnose),
+        and 3 feature cards (100% Local, Basado en ICVD, Gemma 4 + Ollama).
+      frontend/components/OfflineBadge.tsx: fixed top-right pill that pings
+        localhost:8000/healthcheck on mount and reflects offline status.
+    artifacts:
+      - "frontend/app/layout.tsx"
+      - "frontend/app/page.tsx"
+      - "frontend/components/OfflineBadge.tsx"
+    acceptance_criteria:
+      - "`cd frontend && npm run build` exits 0"
+      - "Visiting http://localhost:3000 renders 'VertigoDx' in the document"
+      - "OfflineBadge shows '100% Local · Offline' when backend is up"
+    dependencies: ["D2-T08"]
+    status: pending
+
+  - id: D2-T10
+    day: 2
+    milestone: M2
+    title: "Diagnose-page shell + question state plumbing"
+    type: code
+    estimated_minutes: 45
+    description: |
+      frontend/app/diagnose/page.tsx as a client component that holds
+      step + responses + result + loading state, renders a Progress bar
+      and delegates to <QuestionWizard /> (stub for Day 2) and <ResultPanel />
+      (stub for Day 2). Stubs render 'TODO' so the build is green.
+    artifacts:
+      - "frontend/app/diagnose/page.tsx"
+      - "frontend/components/QuestionWizard.tsx"
+      - "frontend/components/ResultPanel.tsx"
+    acceptance_criteria:
+      - "`cd frontend && npm run build` exits 0"
+      - "Visiting /diagnose renders the Progress component (no runtime error)"
+    dependencies: ["D2-T09"]
+    status: pending
+
+  - id: D2-T11
+    day: 2
+    milestone: M2
+    title: "Day 2 closing commit"
+    type: chore
+    estimated_minutes: 10
+    commands:
+      - "git add backend frontend"
+      - "git commit -m 'feat: day 2 — prompt v2 + e2e tests + Next.js scaffold'"
+      - "git push origin main"
+    acceptance_criteria:
+      - "`git log --oneline -1` matches day-2 message"
+    dependencies: ["D2-T07", "D2-T10"]
+    status: pending
+
+  # =========================================================================
+  # DAY 3 — Frontend completion + deploy
+  # =========================================================================
+
+  - id: D3-T01
+    day: 3
+    milestone: M3
+    title: "Morning checkpoint — Day 2 still green"
+    type: chore
+    estimated_minutes: 20
+    commands:
+      - "cd backend && pytest -v"
+      - "cd frontend && npm run build"
+    acceptance_criteria:
+      - "Both commands exit 0"
+    dependencies: ["D2-T11"]
+    status: pending
+
+  - id: D3-T02
+    day: 3
+    milestone: M3
+    title: "Define the 10-question canonical list (lib/questions.ts)"
+    type: code
+    estimated_minutes: 45
+    description: |
+      Export QUESTIONS array of Question objects:
+        { field, title (Spanish), description?, type: 'single'|'boolean', options? }
+      One entry per PatientResponses field, in this order:
+        episode_duration, trigger, hearing_status, migraine_history,
+        nausea_vomiting, age_bracket, onset, gait, neuro_red_flags, cv_risk.
+      Option labels in Spanish, values matching the backend Enum.
+    artifacts:
+      - "frontend/lib/questions.ts"
+    acceptance_criteria:
+      - "QUESTIONS.length === 10"
+      - "QUESTIONS.map(q => q.field) deep-equals the field order above"
+      - "Every option.value in QUESTIONS matches a valid enum value in backend/app/schemas.py"
+    dependencies: ["D3-T01"]
+    status: pending
+
+  - id: D3-T03
+    day: 3
+    milestone: M3
+    title: "Implement QuestionWizard with framer-motion transitions"
+    type: code
+    estimated_minutes: 120
+    description: |
+      frontend/components/QuestionWizard.tsx: per-step render of one question
+      with AnimatePresence (slide left/right). Single-select uses RadioGroup;
+      boolean uses two large buttons (Sí/No). Back/Siguiente buttons; final
+      step button reads 'Diagnosticar'. Loading state shows
+      'Analizando con Gemma 4...' with a spinner.
+    artifacts:
+      - "frontend/components/QuestionWizard.tsx"
+    acceptance_criteria:
+      - "All 10 questions can be answered manually in dev mode without runtime errors"
+      - "Pressing Atrás on step 0 is disabled"
+      - "Final step button label is 'Diagnosticar'"
+    dependencies: ["D3-T02"]
+    status: pending
+
+  - id: D3-T04
+    day: 3
+    milestone: M3
+    title: "Implement ResultPanel with prominent stroke alert"
+    type: code
+    estimated_minutes: 120
+    description: |
+      frontend/components/ResultPanel.tsx renders, in order:
+        1. <Alert variant=destructive> with AlertTriangle icon if stroke_alert.triggered
+        2. Differential card: up to 3 candidates each with confidence Badge,
+           supporting_criteria (green check list), missing_criteria (amber list),
+           icvd_reference italic footnote
+        3. Clinical reasoning card with 'Gemma 4 · Local' badge
+        4. Next steps numbered ordered list with motion staggered entrance
+        5. Limitations card (muted)
+        6. Disclaimer alert: 'apoyo al diagnóstico, no dispositivo médico'
+        7. Footer: processing_time_ms display and 'Nueva evaluación' button
+    artifacts:
+      - "frontend/components/ResultPanel.tsx"
+    acceptance_criteria:
+      - "Triggering the stroke case via /diagnose renders the red Alert with text containing 'sospecha' or 'stroke alert' (visible heading)"
+      - "Top-3 differential renders with three colored confidence badges"
+      - "Disclaimer alert is always present"
+    dependencies: ["D3-T03"]
+    status: pending
+
+  - id: D3-T05
+    day: 3
+    milestone: M3
+    title: "Build /demo page with one-click case execution"
+    type: code
+    estimated_minutes: 60
+    description: |
+      frontend/app/demo/page.tsx: fetches GET /demo-cases on mount, lists 5
+      Cards (label + narrative + 'Stroke alert' badge if expected),
+      each with a 'Ejecutar' button that POSTs the case's responses to
+      /diagnose and renders <ResultPanel /> on success. Includes a back-to-list
+       button via setResult(null).
+    artifacts:
+      - "frontend/app/demo/page.tsx"
+    acceptance_criteria:
+      - "Visiting /demo lists 5 demo cases"
+      - "Clicking Ejecutar on case_04 renders the red stroke alert in the result"
+      - "Clicking Nueva evaluación returns to the case list"
+    dependencies: ["D3-T04", "D2-T06"]
+    status: pending
+
+  - id: D3-T06
+    day: 3
+    milestone: M3
+    title: "Polish landing page (feature cards + gradient + favicon)"
+    type: code
+    estimated_minutes: 45
+    description: |
+      Upgrade frontend/app/page.tsx: gradient background, 3 feature Cards
+      (WifiOff/Stethoscope/Lock icons), GitHub link in footer. Replace favicon
+      with a 'Vx' on blue background (any 32x32 png) at frontend/app/favicon.ico.
+    artifacts:
+      - "frontend/app/page.tsx"
+      - "frontend/app/favicon.ico"
+    acceptance_criteria:
+      - "Landing page contains visible labels '100% Local', 'Basado en ICVD', 'Gemma 4 + Ollama'"
+      - "`cd frontend && npm run build` exits 0"
+    dependencies: ["D3-T01"]
+    status: pending
+
+  - id: D3-T07
+    day: 3
+    milestone: M3
+    title: "Decide deploy strategy and configure CORS"
+    type: decision
+    estimated_minutes: 30
+    description: |
+      Pick one of:
+        A) Vercel frontend + ngrok tunnel to local Ollama backend (recommended)
+        B) Hugging Face Spaces with Docker + gemma4:e4b (more independent)
+        C) Localhost only — record demo via screen capture
+      Update CORSMiddleware allow_origins to include the chosen public origin.
+      Document the choice in commit message.
+    artifacts:
+      - "backend/app/main.py"
+    acceptance_criteria:
+      - "If A: ngrok URL added to allow_origins"
+      - "If B: Dockerfile + docker-compose.yml exist at repo root"
+      - "If C: a README note explains that 'Live Demo' refers to localhost recording"
+    dependencies: ["D3-T04"]
+    status: pending
+
+  - id: D3-T08
+    day: 3
+    milestone: M3
+    title: "Deploy frontend (if A or B)"
+    type: deploy
+    estimated_minutes: 90
+    description: |
+      Path A: `npx vercel` from frontend/ with NEXT_PUBLIC_API_URL env var.
+      Path B: build the Docker image and push to HF Spaces.
+      Verify all 5 demo cases run end-to-end in the deployed environment.
+    acceptance_criteria:
+      - "Public URL responds with the landing page"
+      - "Visiting /demo and clicking Ejecutar on case_04 in the deployed env yields a stroke alert"
+    dependencies: ["D3-T07"]
+    optional: true
+    status: pending
+
+  - id: D3-T09
+    day: 3
+    milestone: M3
+    title: "Manual smoke test — full 8-point flow"
+    type: test
+    estimated_minutes: 30
+    description: |
+      Walk through, document, and check off:
+        1. Landing renders with 3 feature cards
+        2. 'Ver casos demo' lists 5 cases
+        3. Run case_01 BPPV -> result correct, no stroke alert
+        4. 'Nueva evaluación' returns to the case list
+        5. Run case_04 stroke -> red alert prominent, reasoning cites ataxia troncal
+        6. 'Evaluación nueva' opens the wizard
+        7. Answer 10 questions manually -> coherent result
+        8. Average end-to-end latency per case < 8s after warmup
+    acceptance_criteria:
+      - "All 8 checkpoints recorded as passing"
+    dependencies: ["D3-T05", "D3-T06"]
+    status: pending
+
+  - id: D3-T10
+    day: 3
+    milestone: M3
+    title: "Day 3 closing commit"
+    type: chore
+    estimated_minutes: 10
+    commands:
+      - "git add frontend backend"
+      - "git commit -m 'feat: day 3 — wizard, result panel, demo page, landing polish, deploy config'"
+      - "git push origin main"
+    acceptance_criteria:
+      - "`git log --oneline -1` matches day-3 message"
+    dependencies: ["D3-T09"]
+    status: pending
+
+  # =========================================================================
+  # DAY 4 — Video, writeup, submit
+  # =========================================================================
+
+  - id: D4-T01
+    day: 4
+    milestone: M4
+    title: "Pre-flight — repo stable, tests green, build green"
+    type: chore
+    estimated_minutes: 30
+    commands:
+      - "cd backend && pytest -v"
+      - "cd frontend && npm run build"
+    acceptance_criteria:
+      - "Both exit 0. If not, document as 'known limitation' in writeup and do NOT debug on submit day."
+    dependencies: ["D3-T10"]
+    status: pending
+
+  - id: D4-T02
+    day: 4
+    milestone: M4
+    title: "Write final 3-min video script (English voiceover)"
+    type: content
+    estimated_minutes: 60
+    description: |
+      ~285 words, ~2:50 read time. Structure: hook (rural Chile) -> data
+      (35-40% miss rate, <30 specialists) -> solution (VertigoDx + Gemma 4 +
+      Ollama) -> live demo of case_04 stroke -> WiFi disconnect moment -> CTA.
+      Save as a private working file (NOT under docs/ — that's gitignored;
+      keep it outside the repo or in a local working dir).
+    acceptance_criteria:
+      - "Script word count between 270 and 310"
+      - "Script explicitly mentions Gemma 4, Ollama, ICVD, HINTS, and a WiFi-disconnect moment"
+    dependencies: ["D4-T01"]
+    status: pending
+
+  - id: D4-T03
+    day: 4
+    milestone: M4
+    title: "Record screen capture of the demo flow"
+    type: production
+    estimated_minutes: 60
+    description: |
+      Using QuickTime or OBS, capture: landing -> /demo -> click case_04 ->
+      stroke alert prominent -> click Nueva evaluación -> /diagnose ->
+      manual wizard for a BPPV case -> result.
+      Resolution 1920x1080, 30fps, MP4, audio off (voiceover recorded separately).
+    acceptance_criteria:
+      - "Raw video file exists locally"
+      - "File length is between 60 and 180 seconds"
+    dependencies: ["D4-T01"]
+    status: pending
+
+  - id: D4-T04
+    day: 4
+    milestone: M4
+    title: "Record voiceover (English)"
+    type: production
+    estimated_minutes: 60
+    description: |
+      Quiet room, mic 15-20 cm. Record the full script in 2-3 complete takes.
+      Save best take as WAV/M4A. If author is not confident in English,
+      ElevenLabs voice clone of author's voice is acceptable (must be disclosed
+      in writeup).
+    acceptance_criteria:
+      - "Audio file exists, no clipping, between 165-180 seconds"
+    dependencies: ["D4-T02"]
+    status: pending
+
+  - id: D4-T05
+    day: 4
+    milestone: M4
+    title: "Edit final video (2:50–3:00) with subtitles and royalty-free music"
+    type: production
+    estimated_minutes: 150
+    description: |
+      Editor of choice (CapCut / DaVinci Resolve / iMovie). Tracks:
+        - screen capture (D4-T03)
+        - B-roll from Pexels/Pixabay (rural clinic, Chile, elderly patient)
+        - voiceover (D4-T04)
+        - background music from YouTube Audio Library or Pixabay Music at 15-25% volume
+        - English subtitles synced to the script
+        - text annotations at key demo moments
+        - logo / GitHub URL on closing card
+      Export 1920x1080 30fps H.264 MP4.
+    acceptance_criteria:
+      - "Final video duration between 2:50 and 3:00 inclusive"
+      - "Subtitles present throughout"
+      - "Logo + repo URL visible in closing frame"
+    dependencies: ["D4-T03", "D4-T04"]
+    status: pending
+
+  - id: D4-T06
+    day: 4
+    milestone: M4
+    title: "Upload video to YouTube as public"
+    type: deploy
+    estimated_minutes: 30
+    description: |
+      Title: 'VertigoDx — Privacy-First Vestibular Diagnosis AI · Gemma 4 Good Hackathon 2026'.
+      Description includes: project summary, hackathon track, GitHub link,
+      Kaggle writeup link, list of clinical foundations, disclaimer.
+      Visibility: Public (NOT unlisted, NOT private). Category: Science & Technology.
+      Capture the resulting YouTube video ID.
+    acceptance_criteria:
+      - "YouTube URL is reachable in an incognito browser without login"
+      - "Video duration shown is between 2:50 and 3:00"
+      - "Video ID is recorded somewhere accessible for D4-T07"
+    dependencies: ["D4-T05"]
+    status: pending
+
+  - id: D4-T07
+    day: 4
+    milestone: M4
+    title: "Embed video link in README.md and push"
+    type: code
+    estimated_minutes: 10
+    description: |
+      Replace the placeholder demo-video section in README.md with the live
+      YouTube embed/link and thumbnail. Commit and push to main.
+    artifacts:
+      - "README.md"
+    commands:
+      - "git add README.md"
+      - "git commit -m 'docs: embed final demo video link'"
+      - "git push origin main"
+    acceptance_criteria:
+      - "README.md contains the YouTube URL"
+      - "Latest commit message matches above"
+    dependencies: ["D4-T06"]
+    status: pending
+
+  - id: D4-T08
+    day: 4
+    milestone: M4
+    title: "Design cover image (1280x720)"
+    type: production
+    estimated_minutes: 45
+    description: |
+      Figma / Canva. Layout: VertigoDx wordmark + subtitle in English +
+      3 chips (Gemma 4, Ollama, 100% Offline) + hackathon attribution.
+      Palette: blue-indigo gradient #1e3a8a -> #312e81, white text,
+      green/red accents.
+      Export PNG 1280x720 to a local working folder (NOT under docs/).
+    acceptance_criteria:
+      - "PNG file exists, dimensions exactly 1280x720"
+      - "Contains the words 'VertigoDx' and 'Gemma 4'"
+    dependencies: ["D4-T01"]
+    status: pending
+
+  - id: D4-T09
+    day: 4
+    milestone: M4
+    title: "Draft Kaggle writeup (≤1500 words)"
+    type: content
+    estimated_minutes: 120
+    description: |
+      Six sections, in order:
+        1. The Problem (~270 w)
+        2. Why Gemma 4 (~200 w)
+        3. Architecture (~350 w) — incl. diagram description
+        4. Technical Implementation (~320 w)
+        5. Impact & Vision (~220 w)
+        6. Limitations & Next Steps (~140 w)
+      Title: 'VertigoDx — Privacy-First Vestibular Diagnosis AI for Underserved Latin American Clinics'.
+      Subtitle: 'How Gemma 4 + Ollama Bring Otoneurology Subspecialist Reasoning to Rural Primary Care'.
+      Honest limitations explicitly listed.
+      Save locally (NOT under docs/ — gitignored).
+    acceptance_criteria:
+      - "Word count between 1400 and 1500 inclusive (`wc -w` on the draft)"
+      - "Title and subtitle present"
+      - "Every section header present"
+    dependencies: ["D4-T01"]
+    status: pending
+
+  - id: D4-T10
+    day: 4
+    milestone: M4
+    title: "Submit on Kaggle"
+    type: deploy
+    estimated_minutes: 45
+    description: |
+      Kaggle hackathon page -> New Writeup. Select track 'Impact Track — Health & Sciences'.
+      Paste writeup markdown. Upload cover image to Media Gallery.
+      Attach YouTube URL, GitHub repo URL, and live-demo URL (or note 'localhost-only').
+      Final review, then click Submit.
+      Take a screenshot of the success confirmation.
+    acceptance_criteria:
+      - "Submission appears in Kaggle 'Submissions' list with track Impact Track — Health & Sciences"
+      - "Cover image visible in the public writeup preview"
+      - "Screenshot of confirmation saved locally"
+    dependencies: ["D4-T07", "D4-T08", "D4-T09"]
+    status: pending
+
+  - id: D4-T11
+    day: 4
+    milestone: M4
+    title: "Final repo push + tag v1.0-hackathon"
+    type: chore
+    estimated_minutes: 15
+    commands:
+      - "git add -A"
+      - "git commit -m 'chore: hackathon submission v1.0' --allow-empty"
+      - "git tag v1.0-hackathon"
+      - "git push origin main"
+      - "git push origin v1.0-hackathon"
+    acceptance_criteria:
+      - "Tag v1.0-hackathon exists on remote (`git ls-remote --tags origin | grep v1.0-hackathon`)"
+    dependencies: ["D4-T10"]
+    status: pending
+
+# =============================================================================
+# OPTIONAL ENHANCEMENT TASKS — execute only after the main path is complete
+# =============================================================================
+optional_enhancements:
+
+  - id: OPT-01
+    title: "Visible Gemma 4 thinking-mode pane in the result UI"
+    rationale: "Gemma-4-specific feature; visually unique; differentiates the technical depth score."
+    estimated_minutes: 120
+    depends_on: ["D3-T04"]
+    description: |
+      Stream Gemma's reasoning chunks to the UI while the request is in flight,
+      so the judge sees the model's chain-of-thought materialize on screen.
+    status: pending
+
+  - id: OPT-02
+    title: "Native function calling — Gemma calls compute_hints() and lookup_icvd()"
+    rationale: "Strong signal of Gemma 4 native-feature exploitation for the technical judge."
+    estimated_minutes: 180
+    depends_on: ["D2-T03"]
+    description: |
+      Refactor the LLM call to use ollama function-calling so Gemma 4 invokes
+      backend tools rather than receiving everything inline. Tools:
+        - compute_hints_score(responses)
+        - lookup_icvd_criterion(diagnosis)
+    status: pending
+
+  - id: OPT-03
+    title: "Mention multimodal audio input as future work in writeup"
+    rationale: "Signals ambition without scope creep."
+    estimated_minutes: 15
+    depends_on: ["D4-T09"]
+    description: |
+      Add a short paragraph in section 6 (Limitations & Next Steps) noting
+      Gemma 4 supports native audio and that voice-input dictation for the
+      clinician is a planned post-hackathon experiment.
+    status: pending
+
+# =============================================================================
+# DAY 5 — Buffer (DO NOT CODE NEW FEATURES)
+# =============================================================================
+buffer_day:
+  day: 5
+  rules:
+    - "Only allowed actions: fix critical bugs blocking submission, re-record video, edit writeup."
+    - "Do NOT build new features."
+    - "If everything is green by 12:00 local, rest."
+
+# =============================================================================
+# RISK REGISTER
+# =============================================================================
+risks:
+  - id: R1
+    risk: "26B model too slow on local hardware"
+    likelihood: medium
+    mitigation: "Fall back to gemma4:e4b in llm.py. Detection: Day 1 smoke test latency > 15s."
+  - id: R2
+    risk: "Gemma outputs English clinical terms"
+    likelihood: high
+    mitigation: "SYSTEM_PROMPT_V2 prohibitions + e2e test that fails on English terms."
+  - id: R3
+    risk: "Deploy fails on Day 3"
+    likelihood: medium
+    mitigation: "Fallback to localhost-only demo via screen recording. README notes the live-demo URL is replaced by the recorded YouTube video."
+  - id: R4
+    risk: "Video duration > 3:00"
+    likelihood: medium
+    mitigation: "Cut B-roll, trim intro. Hard rule: never submit a >3:00 video — disqualification risk."
+  - id: R5
+    risk: "Submission technical failure on Kaggle"
+    likelihood: low
+    mitigation: "Submit by D4-T10 target (May 17 EOD), 24h before deadline."

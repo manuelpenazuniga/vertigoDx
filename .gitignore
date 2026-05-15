@@ -1,0 +1,158 @@
+# =============================================================================
+# VertigoDx — .gitignore
+# Public repository for the Gemma 4 Good Hackathon submission.
+# Strategy and planning artifacts MUST stay private.
+# =============================================================================
+
+# ---- Strategy & private planning (DO NOT publish) --------------------------
+docs/
+resources/
+
+# ---- Environment & secrets -------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials.json
+
+# ---- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtualenvs
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Testing & coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.hypothesis/
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Type checkers / linters
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# ---- Node / Next.js --------------------------------------------------------
+node_modules/
+.pnp
+.pnp.*
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.log
+.yarn/install-state.gz
+.npm/
+.eslintcache
+
+# Next.js build output
+.next/
+out/
+next-env.d.ts
+
+# Turbopack / SWC
+.turbo/
+.swc/
+
+# ---- Frontend artifacts ----------------------------------------------------
+build/
+dist/
+*.tsbuildinfo
+
+# ---- Local stores (RAG / cache) --------------------------------------------
+chroma_db/
+*.sqlite
+*.sqlite3
+*.db
+
+# ---- Models & large binaries (never commit; use Ollama registry) -----------
+*.gguf
+*.bin
+*.safetensors
+*.onnx
+*.pt
+*.pth
+models/
+
+# ---- Media / demo recordings (kept out of repo) ----------------------------
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+recordings/
+
+# ---- IDE & editor ----------------------------------------------------------
+.idea/
+.vscode/
+!.vscode/settings.json.example
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ---- OS detritus -----------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ---- Logs & temp -----------------------------------------------------------
+*.log
+logs/
+tmp/
+temp/
+.tmp/
+
+# ---- Vercel / deploy -------------------------------------------------------
+.vercel
+.netlify
+
+# ---- Local task / agent state ---------------------------------------------
+.claude/
+.cursor/
