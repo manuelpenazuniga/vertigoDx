@@ -788,7 +788,7 @@ tasks:
       - "Top-3 differential renders with three colored confidence badges"
       - "Disclaimer alert is always present"
     dependencies: ["D3-T03"]
-    status: pending
+    status: completed
 
   - id: D3-T05
     day: 3
@@ -809,7 +809,7 @@ tasks:
       - "Clicking Ejecutar on case_04 renders the red stroke alert in the result"
       - "Clicking Nueva evaluación returns to the case list"
     dependencies: ["D3-T04", "D2-T06"]
-    status: pending
+    status: completed
 
   - id: D3-T06
     day: 3
