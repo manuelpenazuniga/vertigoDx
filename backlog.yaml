@@ -762,7 +762,7 @@ tasks:
       - "Pressing Atrás on step 0 is disabled"
       - "Final step button label is 'Diagnosticar'"
     dependencies: ["D3-T02"]
-    status: pending
+    status: completed
 
   - id: D3-T04
     day: 3
