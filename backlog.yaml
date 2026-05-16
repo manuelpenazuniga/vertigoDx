@@ -491,7 +491,7 @@ tasks:
       - "All Day 1 tests pass"
       - "/healthcheck returns 200 offline=true"
     dependencies: ["D1-T14"]
-    status: pending
+    status: completed
 
   - id: D2-T02
     day: 2
@@ -572,7 +572,7 @@ tasks:
       - "File line count grows by >= 50 lines vs Day 1 baseline"
       - "File contains the substrings 'Dix-Hallpike', 'Epley', 'AICA'"
     dependencies: ["D1-T07"]
-    status: pending
+    status: completed
 
   - id: D2-T06
     day: 2
@@ -640,7 +640,7 @@ tasks:
       - "frontend/components/ui/button.tsx exists"
       - "`cd frontend && npm run build` exits 0"
     dependencies: ["D2-T01"]
-    status: pending
+    status: completed
 
   - id: D2-T09
     day: 2
@@ -664,7 +664,7 @@ tasks:
       - "Visiting http://localhost:3000 renders 'VertigoDx' in the document"
       - "OfflineBadge shows '100% Local · Offline' when backend is up"
     dependencies: ["D2-T08"]
-    status: pending
+    status: completed
 
   - id: D2-T10
     day: 2
@@ -685,7 +685,7 @@ tasks:
       - "`cd frontend && npm run build` exits 0"
       - "Visiting /diagnose renders the Progress component (no runtime error)"
     dependencies: ["D2-T09"]
-    status: pending
+    status: completed
 
   - id: D2-T11
     day: 2

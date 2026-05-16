@@ -172,3 +172,24 @@ nistagmo. Tasa de éxito 80-95% en 1-3 sesiones.
 - **Sospecha de causa central**: NO usar antieméticos sedantes
   (dimenhidrinato, prometazina) que enmascaran el déficit neurológico.
   Derivar inmediatamente.
+
+## Diagnóstico Diferencial de Vértigo Agudo Sostenido
+
+| Patología | HINTS | Hipoacusia | Inicio | Banderas rojas |
+|---|---|---|---|---|
+| **Neuritis vestibular** | Unidireccional, sin desviación, impulso anormal | No | Gradual | No |
+| **Stroke cerebeloso (AICA, PICA)** | Bidireccional, desviación de skew, impulso normal | Posible (AICA) | Súbito | Ataxia troncal, dismetría, focalidad neurológica |
+| **Laberintitis** | Unidireccional, impulso anormal | Sí | Gradual | No |
+| **Migraña vestibular** | Variable | Rara o leve | Variable | Cefalea, fotofobia, fonofobia |
+
+## Manejo de la Sospecha de Causa Central
+
+1. Activación del protocolo de accidente cerebrovascular (ACV).
+2. Ordenar neuroimagen urgente (RM de fosa posterior de preferencia).
+3. Evitar el uso de medicaciones contraindicadas, como antieméticos sedantes (dimenhidrinato o prometazina).
+4. Monitorización continua de signos vitales.
+5. Comunicación con la familia sobre la sospecha diagnóstica y plan a seguir.
+
+## Comorbilidad Migraña Vestibular + Ménière
+
+La ICVD permite explícitamente la codificación dual entre diagnósticos. Se estima que aproximadamente el 30% de los pacientes con Enfermedad de Ménière también cumplen con los criterios de Migraña Vestibular. En la práctica, cuando ambos candidatos en el motor de reglas obtienen una puntuación de 'media' o 'alta', el razonamiento clínico debe abordar y explicar esta superposición (overlap). No se debe intentar elegir arbitrariamente uno sobre el otro, sino presentar la coexistencia clínica al médico evaluador.
