@@ -532,7 +532,7 @@ tasks:
       - "All 5 demo cases run via eval_prompts.py v2 with reasoning that does NOT contain 'stroke', 'follow-up', or 'imaging' (case-insensitive)"
       - "Case 04 reasoning's first 50 chars contain 'derivación' or 'urgente' or '⚠'"
     dependencies: ["D2-T02"]
-    status: pending
+    status: completed
 
   - id: D2-T04
     day: 2
@@ -616,7 +616,7 @@ tasks:
     acceptance_criteria:
       - "With uvicorn running, `pytest backend/tests/test_e2e.py -v` passes all 5 parametrized cases"
     dependencies: ["D2-T06"]
-    status: pending
+    status: completed
 
   - id: D2-T08
     day: 2
@@ -700,7 +700,7 @@ tasks:
     acceptance_criteria:
       - "`git log --oneline -1` matches day-2 message"
     dependencies: ["D2-T07", "D2-T10"]
-    status: pending
+    status: completed
 
   # =========================================================================
   # DAY 3 — Frontend completion + deploy

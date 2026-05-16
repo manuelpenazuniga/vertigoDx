@@ -20,7 +20,7 @@ import re
 
 import ollama
 
-from .prompts import SYSTEM_PROMPT_V1, build_user_prompt
+from .prompts import SYSTEM_PROMPT_ACTIVE, build_user_prompt
 
 # Model identifiers — keep in sync with the README + CLAUDE.md tables
 MODEL_LIGHT = "gemma4:e4b"
@@ -92,7 +92,7 @@ def _call_ollama(model: str, user_prompt: str, temperature: float) -> dict:
     response = ollama.chat(
         model=model,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT_V1},
+            {"role": "system", "content": SYSTEM_PROMPT_ACTIVE},
             {"role": "user", "content": user_prompt},
         ],
         options={

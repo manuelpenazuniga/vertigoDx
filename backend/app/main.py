@@ -102,6 +102,8 @@ def _format_candidates_for_llm(candidates: list[DiagnosisCandidate]) -> str:
 
 
 def _format_stroke_alert(alert: StrokeAlert) -> str:
+    """Render the alert block. Avoid the English word 'stroke' here so the
+    LLM does not pick it up by mimicry — V2 prompt forbids it in the output."""
     return (
         f"Disparada: {'SÍ' if alert.triggered else 'NO'}\n"
         f"Urgencia: {alert.urgency}\n"
