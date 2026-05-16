@@ -510,7 +510,7 @@ tasks:
     acceptance_criteria:
       - "`cd backend && python scripts/eval_prompts.py v1` runs all 5 cases without exception and prints each case_id"
     dependencies: ["D2-T01"]
-    status: pending
+    status: completed
 
   - id: D2-T03
     day: 2
@@ -593,6 +593,7 @@ tasks:
       - "`curl http://localhost:8000/demo-cases | jq 'length'` returns 5"
       - "After server startup, the first `curl POST /diagnose` returns within 8 seconds (warmup happened)"
     dependencies: ["D2-T03"]
+    progress_note: "demo-cases endpoint completed by Gemini handoff round 2 on 2026-05-16; /diagnose/stream and startup warmup still pending"
     status: pending
 
   - id: D2-T07
@@ -718,7 +719,7 @@ tasks:
     acceptance_criteria:
       - "Both commands exit 0"
     dependencies: ["D2-T11"]
-    status: pending
+    status: completed
 
   - id: D3-T02
     day: 3
@@ -740,7 +741,7 @@ tasks:
       - "QUESTIONS.map(q => q.field) deep-equals the field order above"
       - "Every option.value in QUESTIONS matches a valid enum value in backend/app/schemas.py"
     dependencies: ["D3-T01"]
-    status: pending
+    status: completed
 
   - id: D3-T03
     day: 3
@@ -827,7 +828,7 @@ tasks:
       - "Landing page contains visible labels '100% Local', 'Basado en ICVD', 'Gemma 4 + Ollama'"
       - "`cd frontend && npm run build` exits 0"
     dependencies: ["D3-T01"]
-    status: pending
+    status: completed
 
   - id: D3-T07
     day: 3

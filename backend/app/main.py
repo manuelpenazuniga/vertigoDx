@@ -11,8 +11,10 @@ Pipeline (per `POST /diagnose`):
 """
 from __future__ import annotations
 
+import json
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import ollama
 from fastapi import FastAPI
@@ -71,6 +73,15 @@ def healthcheck() -> dict:
         "autoscaler": "stroke-triggered routes to heavy; otherwise light",
         "offline": True,
     }
+
+
+@app.get("/demo-cases")
+def list_demo_cases() -> list[dict]:
+    """Return the 5 scripted clinical demo cases for the frontend to display."""
+    cases_path = (
+        Path(__file__).resolve().parents[2] / "data" / "demo_cases.json"
+    )
+    return json.loads(cases_path.read_text(encoding="utf-8"))
 
 
 def _format_responses_for_llm(r: PatientResponses) -> str:
