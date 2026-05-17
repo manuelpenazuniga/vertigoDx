@@ -170,6 +170,8 @@ def diagnose(responses: PatientResponses) -> DiagnosticResult:
         model_used=pick_model(stroke_triggered=stroke_alert.triggered),
         generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
         corpus_version=CORPUS_VERSION,
+        consensus_paths=llm_output.get("_consensus_paths"),
+        consensus_agreement_ratio=llm_output.get("_consensus_agreement_ratio"),
     )
 
 
@@ -255,6 +257,8 @@ async def diagnose_stream(responses: PatientResponses) -> StreamingResponse:
             model_used=pick_model(stroke_triggered=stroke_alert.triggered),
             generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
             corpus_version=CORPUS_VERSION,
+            consensus_paths=llm_output.get("_consensus_paths"),
+            consensus_agreement_ratio=llm_output.get("_consensus_agreement_ratio"),
         )
         yield _sse("reasoning", result.model_dump(mode="json"))
 

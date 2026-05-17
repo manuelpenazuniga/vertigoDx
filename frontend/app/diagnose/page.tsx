@@ -34,7 +34,7 @@ export default function DiagnosePage() {
         setStagesSeen([...stages]);
       });
       setResult(data);
-    } catch (error) {
+    } catch {
       alert("Hubo un error al procesar el diagnóstico.");
     } finally {
       setLoading(false);
@@ -45,6 +45,7 @@ export default function DiagnosePage() {
     setStep(0);
     setResponses({});
     setResult(null);
+    setStagesSeen([]);  // defensive: avoid stale stages flashing on the next run
   };
 
   return (

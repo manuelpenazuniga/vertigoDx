@@ -54,6 +54,22 @@ export function ResultPanel({ result, onRestart }: Props) {
                 {stroke_alert.score_hints != null && (
                   <p className="text-sm">Score HINTS-adaptado: {stroke_alert.score_hints}</p>
                 )}
+                {result.consensus_paths != null && result.consensus_paths > 1 && (
+                  <p className="text-sm pt-1 border-t border-red-300 dark:border-red-800 mt-2">
+                    {result.consensus_agreement_ratio === 1 ? (
+                      <>
+                        <strong>Consenso clínico:</strong> {result.consensus_paths}/{result.consensus_paths} caminos del modelo coinciden en derivación urgente
+                        (Self-Consistency, Wang et al. 2023).
+                      </>
+                    ) : (
+                      <>
+                        <strong>Consenso parcial:</strong>{" "}
+                        {Math.round((result.consensus_agreement_ratio ?? 0) * result.consensus_paths)}
+                        /{result.consensus_paths} caminos coinciden — se recomienda evaluación presencial adicional.
+                      </>
+                    )}
+                  </p>
+                )}
               </AlertDescription>
             </Alert>
           </motion.div>

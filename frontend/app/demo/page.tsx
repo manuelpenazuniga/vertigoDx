@@ -52,6 +52,7 @@ export default function DemoPage() {
   function reset() {
     setResult(null);
     setSelectedCase(null);
+    setStagesSeen([]);  // defensive: avoid stale stages flashing on the next run
   }
 
   if (result && selectedCase) {

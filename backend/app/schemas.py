@@ -137,3 +137,20 @@ class DiagnosticResult(BaseModel):
         default=None,
         description="First 12 hex chars of SHA-256 of icvd_corpus.md — for reproducibility.",
     )
+    # --- Self-Consistency metadata (round 4, stroke-only) ---
+    consensus_paths: int | None = Field(
+        default=None,
+        description=(
+            "Number of independent LLM inference paths run for this result. "
+            "1 for non-stroke cases; up to N for stroke cases (Self-Consistency, "
+            "Wang et al. ICLR 2023)."
+        ),
+    )
+    consensus_agreement_ratio: float | None = Field(
+        default=None,
+        description=(
+            "Fraction of paths whose reasoning starts with an urgency cue "
+            "('Derivación' / 'Activar'). 1.0 = full consensus; <1.0 = partial "
+            "disagreement → clinician should consider additional in-person evaluation."
+        ),
+    )
