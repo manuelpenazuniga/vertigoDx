@@ -850,7 +850,8 @@ tasks:
       - "If B: Dockerfile + docker-compose.yml exist at repo root"
       - "If C: a README note explains that 'Live Demo' refers to localhost recording"
     dependencies: ["D3-T04"]
-    status: pending
+    status: completed
+    progress_note: "Decision 2026-05-16: localhost-only demo via screen recording. Reinforces the privacy-by-design pitch (no remote server can leak data). Skips ngrok + Vercel complexity. D3-T08 is therefore N/A."
 
   - id: D3-T08
     day: 3
@@ -867,7 +868,7 @@ tasks:
       - "Visiting /demo and clicking Ejecutar on case_04 in the deployed env yields a stroke alert"
     dependencies: ["D3-T07"]
     optional: true
-    status: pending
+    status: completed
 
   - id: D3-T09
     day: 3
