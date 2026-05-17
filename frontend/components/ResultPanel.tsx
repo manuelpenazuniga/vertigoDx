@@ -12,38 +12,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-
-type DiagnosisCandidate = {
-  diagnosis: string;
-  confidence: "alta" | "media" | "baja";
-  supporting_criteria: string[];
-  missing_criteria: string[];
-  icvd_reference?: string | null;
-};
-
-type StrokeAlert = {
-  triggered: boolean;
-  reason: string;
-  urgency: "inmediata" | "alta" | "baja";
-  score_hints?: number | null;
-  score_standing?: string | null;
-};
-
-type DiagnosticResult = {
-  differential: DiagnosisCandidate[];
-  stroke_alert: StrokeAlert;
-  clinical_reasoning: string;
-  next_steps: string[];
-  limitations: string;
-  processing_time_ms?: number | null;
-};
+import type { Confidence, DiagnosticResult } from "@/lib/types";
 
 type Props = {
   result: DiagnosticResult;
   onRestart: () => void;
 };
 
-function confidenceBadgeClass(confidence: "alta" | "media" | "baja"): string {
+function confidenceBadgeClass(confidence: Confidence): string {
   if (confidence === "alta") {
     return "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200 border-green-300 border";
   }

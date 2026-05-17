@@ -10,25 +10,18 @@ import { Card } from "@/components/ui/card";
 
 import { OfflineBadge } from "@/components/OfflineBadge";
 import { ResultPanel } from "@/components/ResultPanel";
-
-type DemoCase = {
-  id: string;
-  label: string;
-  narrative: string;
-  responses: Record<string, unknown>;
-  expected_stroke_alert?: boolean;
-};
+import { fetchDemoCases, postDiagnose } from "@/lib/api";
+import type { DemoCase, DiagnosticResult } from "@/lib/types";
 
 export default function DemoPage() {
   const [cases, setCases] = useState<DemoCase[]>([]);
-  const [result, setResult] = useState<unknown | null>(null);
+  const [result, setResult] = useState<DiagnosticResult | null>(null);
   const [selectedCase, setSelectedCase] = useState<DemoCase | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch("http://localhost:8000/demo-cases")
-      .then((r) => r.json())
-      .then((data: DemoCase[]) => setCases(data))
+    fetchDemoCases()
+      .then((data) => setCases(data))
       .catch((err) => {
         console.error("Failed to load demo cases:", err);
       });
@@ -38,13 +31,7 @@ export default function DemoPage() {
     setLoading(true);
     setSelectedCase(c);
     try {
-      const res = await fetch("http://localhost:8000/diagnose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(c.responses),
-      });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const data = await res.json();
+      const data = await postDiagnose(c.responses);
       setResult(data);
     } catch (err) {
       console.error(err);
@@ -61,15 +48,13 @@ export default function DemoPage() {
   }
 
   if (result && selectedCase) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const typed = result as any;
     return (
       <>
         <OfflineBadge />
         <div className="bg-slate-100 dark:bg-slate-900 py-3 px-4 text-center text-sm">
           Caso demo: <strong>{selectedCase.label}</strong> · {selectedCase.narrative}
         </div>
-        <ResultPanel result={typed} onRestart={reset} />
+        <ResultPanel result={result} onRestart={reset} />
       </>
     );
   }

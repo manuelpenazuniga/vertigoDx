@@ -6,27 +6,26 @@ import { ResultPanel } from "@/components/ResultPanel";
 import { OfflineBadge } from "@/components/OfflineBadge";
 import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
+import { postDiagnose } from "@/lib/api";
+import type { DiagnosticResult } from "@/lib/types";
 
 export default function DiagnosePage() {
   const [step, setStep] = useState(0);
-  const [responses, setResponses] = useState({});
-  const [result, setResult] = useState<any | null>(null);
+  const [responses, setResponses] = useState<Record<string, string | boolean>>({});
+  const [result, setResult] = useState<DiagnosticResult | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleAnswer = (field: string, value: any) => {
+  const handleAnswer = (field: string, value: string | boolean) => {
     setResponses((prev) => ({ ...prev, [field]: value }));
+    setStep((s) => s + 1);
   };
 
-  const handleSubmit = async (payload: any) => {
+  const handleBack = () => setStep((s) => Math.max(0, s - 1));
+
+  const handleSubmit = async (payload: Record<string, unknown>) => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/diagnose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Error en el diagnóstico");
-      const data = await res.json();
+      const data = await postDiagnose(payload);
       setResult(data);
     } catch (error) {
       alert("Hubo un error al procesar el diagnóstico.");
@@ -54,6 +53,7 @@ export default function DiagnosePage() {
               responses={responses}
               onAnswer={handleAnswer}
               onComplete={() => handleSubmit(responses)}
+              onBack={handleBack}
               loading={loading}
             />
           </Card>

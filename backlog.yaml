@@ -904,7 +904,7 @@ tasks:
     acceptance_criteria:
       - "`git log --oneline -1` matches day-3 message"
     dependencies: ["D3-T09"]
-    status: pending
+    status: completed
 
   # =========================================================================
   # DAY 4 — Video, writeup, submit
