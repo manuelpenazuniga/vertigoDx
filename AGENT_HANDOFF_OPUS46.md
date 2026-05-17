@@ -1,21 +1,22 @@
-# Agent handoff — Opus 4.6 thinking (Day 3, parallel track B)
+# Agent handoff — Opus 4.6 thinking (Day 4 prep, round 2)
 
 **Target agent:** Claude Opus 4.6 with extended thinking enabled.
 **Author:** Claude Opus 4.7 (senior reviewer).
-**Date:** 2026-05-16.
+**Date:** 2026-05-16 (round 2 of your assignments).
+**Previous round shipped:** commit `9d1e408` — real `QuestionWizard.tsx`. Reviewed and merged. The `internalStep` defensive design was a great call.
 
-This document is the contract. You have the headroom to make judgment calls — but the contract still wins where it specifies behavior. Use extended thinking on the design questions (animation state machine, edge cases), not on questions the contract already answers.
+This document is the contract. Use extended thinking for the layout and typography decisions; use direct execution for boilerplate.
 
-You are running in **parallel** with another agent (Sonnet 4.6, in `AGENT_HANDOFF_SONNET.md`). That agent is writing `ResultPanel.tsx` and `app/demo/page.tsx`. Your work and theirs are file-disjoint: do not touch any file they own.
+You are running in **parallel** with another agent (Sonnet 4.6, in `AGENT_HANDOFF_SONNET.md`). That agent is refactoring frontend types and helpers. Your work and theirs are file-disjoint.
 
 ---
 
 ## 0. Read these files first
 
-1. `CLAUDE.md` — invariants, code style, workflow.
-2. `backlog.yaml` — especially the `runtime_decisions` block.
-3. `frontend/lib/questions.ts` — the canonical 10-question list you will render.
-4. `frontend/app/diagnose/page.tsx` — the page that already imports your component. You must match its prop contract exactly.
+1. `CLAUDE.md`
+2. `backlog.yaml` — task D4-T08 (cover image) is your target. Also read `runtime_decisions` block.
+3. `README.md` — the cover image should feel consistent with the README's branding and badges.
+4. `frontend/app/icon.svg` — the existing "Vx" favicon. Your cover image should be visually consistent with it (same color palette, same wordmark style).
 5. This file.
 
 Do **not** read anything under `docs/` or `resources/`.
@@ -26,192 +27,127 @@ Do **not** read anything under `docs/` or `resources/`.
 
 | # | Rule |
 |---|---|
-| R1 | All UX text in Spanish. |
-| R2 | All code, comments, commits in English. |
-| R3 | Never touch any `backend/app/*.py` file. |
-| R4 | Never touch `frontend/components/ResultPanel.tsx` or `frontend/app/demo/page.tsx` — owned by Sonnet 4.6 on the parallel track. |
-| R5 | Never modify `frontend/lib/questions.ts`. Read-only for you. |
-| R6 | Never modify `frontend/app/diagnose/page.tsx`. The contract for your component is fixed there. |
-| R7 | Push directly to `main` with Conventional Commits. |
-| R8 | Never commit anything under `docs/` or `resources/`. |
-| R9 | Never run `ollama pull`. |
-| R10 | Use only existing shadcn primitives (`button`, `radio-group`, `label`). Do not add new components or new dependencies. |
+| R1 | The cover image must be 1280×720 pixels exactly. Kaggle's submission requires this. |
+| R2 | All visible text on the cover is in English (it's the marketing surface for an English-speaking judge panel). The product itself uses Spanish UI; the cover is the global pitch. |
+| R3 | Push directly to `main` with Conventional Commits. |
+| R4 | Never commit anything under `docs/` or `resources/` — gitignored. |
+| R5 | Do not introduce new fonts. Use only `system-ui` or fonts available in Apple Silicon macOS (which is where the PNG will be rendered): `ui-sans-serif`, `-apple-system`, `SF Pro Display`, `Helvetica`. |
+| R6 | Do not introduce dependencies — `librsvg` is already available via brew. |
+| R7 | Do not touch ANY frontend or backend source file. Your output is only in `public/` and (optionally) one Markdown note. |
+| R8 | Other parallel agent owns `frontend/lib/types.ts`, `frontend/lib/api.ts`, `frontend/components/ResultPanel.tsx`, `frontend/app/demo/page.tsx`, `frontend/app/diagnose/page.tsx` — do not touch any of those. |
 
 ---
 
 ## 2. What is already done
 
-- Backend complete; `/diagnose` returns structured JSON.
-- Landing page, `OfflineBadge`, `app/diagnose/page.tsx` shell — all working.
-- `frontend/lib/questions.ts` defines the canonical 10 questions (read it; it tells you everything about field names, types, options, and Spanish labels).
-- The current `frontend/components/QuestionWizard.tsx` is a placeholder stub. You replace it.
+- Backend complete, frontend complete (landing, /diagnose, /demo, ResultPanel, QuestionWizard all working).
+- Frontend already has an SVG favicon at `frontend/app/icon.svg`: a 64×64 square with `Vx` in white on a `#1e3a8a` (dark blue) rounded background. Your cover should use the same palette.
+
+You are not modifying any of this. You are producing **one new asset** in `frontend/public/cover.svg` (and a PNG export — see Task B).
 
 ---
 
-## 3. Your assignment — D3-T03: real `QuestionWizard.tsx`
+## 3. Your assignment — D4-T08: cover image (SVG + PNG export)
 
-**Goal:** replace the stub with a polished, animated, accessibility-aware wizard that walks through the 10 questions and yields a complete payload to the parent on the last step.
+The cover image is required for Kaggle submission. It is what the judges see in the writeup gallery before clicking through to anything else.
 
-This is the component that holds the user's attention for the entire demo. Animation discipline matters: transitions must feel **fast and confident**, not flashy.
+### Goal
 
-### Prop contract (must match exactly — already used by `app/diagnose/page.tsx`)
+Produce a 1280×720 cover image with this content, laid out and styled to look like a top-tier OSS project's hero card:
 
-```typescript
-type QuestionWizardProps = {
-  step: number;
-  responses: Record<string, string | boolean>;
-  onAnswer: (field: string, value: string | boolean) => void;
-  onComplete: (responses: Record<string, unknown>) => void;
-  loading: boolean;
-};
+- **Wordmark:** `VertigoDx` — centered, large, bold, white.
+- **Subtitle:** `Privacy-First Vestibular Diagnosis AI for Underserved Latin American Clinics` — centered below the wordmark, smaller, white with slight opacity (≈ 0.85).
+- **Three chips/badges** below the subtitle, side-by-side, each with a colored background and label:
+  - Chip 1: `Gemma 4` (blue/teal accent, e.g. `#3b82f6` background, white text)
+  - Chip 2: `Ollama` (dark gray accent, e.g. `#0a0a0a` or `#262626` background, white text)
+  - Chip 3: `100% Offline` (green accent, e.g. `#10b981` background, white text)
+- **Footer attribution:** `Built for the Gemma 4 Good Hackathon · May 2026` — bottom-center, small, white at ≈ 0.6 opacity.
+
+### Visual style
+
+- Background: a diagonal gradient from `#1e3a8a` (top-left, deep blue, matching the favicon) to `#312e81` (bottom-right, indigo). This matches the README acknowledgments section colors.
+- Typography stack (only): `ui-sans-serif, -apple-system, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif`. The cover is rendered to PNG on the dev machine; these are guaranteed to resolve.
+- Wordmark `font-weight: 800` (extra-bold). Subtitle `font-weight: 500`. Chips `font-weight: 600`.
+- Chip pill geometry: ≈ 200px wide × 56px tall, `rx="28"` (fully rounded), 24px horizontal gap between chips.
+- Negative space at top/bottom/sides should feel generous (not crammed). The hackathon judges scroll past hundreds of covers — yours should feel calm and confident, not loud.
+
+### Use extended thinking on
+
+- Exact y-coordinates for wordmark, subtitle, chip row, and footer — they must visually balance the 1280×720 canvas. A common pitfall is a centered text block that sits too low because the visual center is above the geometric center. Plan it on paper before coding.
+- Font sizes that won't get cut off or look pixelated at 1280×720. Wordmark probably ≈ 96-120px; subtitle ≈ 28-32px; chip text ≈ 20-22px; footer ≈ 16-18px. Verify after rendering.
+- Whether to include a subtle 🧠 brain emoji or a small SVG icon next to the wordmark. **Recommendation: no emoji** — the favicon doesn't have one, and emoji rendering across platforms is unreliable. Stay pure typography.
+
+### Task A — Write the SVG file
+
+Create `frontend/public/cover.svg` with the design above. The SVG must:
+
+- Use the SVG namespace and `viewBox="0 0 1280 720"`.
+- Be a single, self-contained file (no external references, no embedded raster images).
+- Render correctly when opened in a browser AND when converted by `rsvg-convert`.
+
+### Task B — Render to PNG
+
+After the SVG is in place, render the PNG with `librsvg`:
+
+```bash
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx"
+
+# Install if missing — should already be there on the dev Mac
+which rsvg-convert || brew install librsvg
+
+# Render 1280x720 PNG
+rsvg-convert -w 1280 -h 720 frontend/public/cover.svg -o frontend/public/cover.png
+
+# Verify exact dimensions
+file frontend/public/cover.png
+# Expected output ends with: PNG image data, 1280 x 720, ...
 ```
 
-The parent page passes `step` and `responses` and listens for two events:
-- `onAnswer(field, value)` — call this when the user picks an answer **and confirms it by clicking Siguiente**. The parent will update `responses` and bump `step`.
-- `onComplete(finalResponses)` — call this on the last step in lieu of `onAnswer`. Pass the merged final responses (including the current step's value).
+If `rsvg-convert` is unavailable and `brew install librsvg` fails for any reason, **stop and report**. Do not try alternative tooling.
 
-The parent does NOT auto-advance on selection. Your wizard owns the **current-value local state** until the user clicks Siguiente.
+### Task C — Visual sanity check
 
-### Required behavior
+Open the PNG in Preview or any image viewer (you can't see it as an agent, but the human will):
 
-1. **Pick the question for the current step:** `const question = QUESTIONS[step]` from `@/lib/questions`.
+- All text is readable.
+- Chips look like pills, not stretched rectangles.
+- Gradient is smooth, not banded.
+- No text is cut off at the edges.
 
-2. **Local state** for the currently-selected value of the current step:
-   ```typescript
-   const [currentValue, setCurrentValue] = useState<string | boolean | undefined>(
-     responses[question?.field] as string | boolean | undefined
-   );
-   ```
-   Reset to the prior value if the user navigates back and returns.
-
-3. **Loading state** — when `loading === true`, render a centered spinner and the Spanish text `Analizando con Gemma 4...` with a sub-label `Aplicando criterios ICVD · Calculando triaje · Generando razonamiento`. Hide the question UI entirely. Use the `Loader2` icon from `lucide-react` with `animate-spin`.
-
-4. **No current question** (`step >= QUESTIONS.length`) — render `null` defensively.
-
-5. **Question header**:
-   - Small muted line: `Pregunta {step + 1} de {QUESTIONS.length}`.
-   - `<h2 className="text-2xl font-semibold">{question.title}</h2>`.
-   - If `question.description`, render it as `text-sm text-muted-foreground mt-2`.
-
-6. **Question body — `type: "single"`**: use shadcn `<RadioGroup>` with `<RadioGroupItem>`. Each option is a bordered, padded, hoverable row:
-   - `flex items-center space-x-3 rounded-lg border p-4 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer transition-colors`.
-   - Clicking the row sets `currentValue` (not only the radio dot).
-   - The selected row's appearance comes from the `RadioGroupItem` checked state — no extra styling needed.
-
-7. **Question body — `type: "boolean"`**: render two large buttons in a `grid grid-cols-2 gap-3`. Each button is `h-20 text-base`. The variant is `default` when the current value matches that button's polarity, `outline` otherwise. Labels: `No` (false) on the left, `Sí` (true) on the right.
-
-8. **Footer row**:
-   - **Atrás** button on the left (`<Button variant="ghost">` with `<ChevronLeft>` icon). Disabled when `step === 0`. Calls a `onBack` prop... wait, the contract doesn't have `onBack`. **Read it again carefully.**
-
-   **Decision needed here:** the prop contract above does NOT include `onBack`. The parent (`app/diagnose/page.tsx`) currently uses an arrow function that calls `setStep(...)` itself. Look at the parent file. It calls `onAnswer` then expects the parent to advance. The current parent does not actually let users go back — the back button needs `onBack` to exist.
-
-   **Resolution:** add an optional `onBack` to the props you accept:
-   ```typescript
-   type QuestionWizardProps = {
-     step: number;
-     responses: Record<string, string | boolean>;
-     onAnswer: (field: string, value: string | boolean) => void;
-     onComplete: (responses: Record<string, unknown>) => void;
-     loading: boolean;
-     onBack?: () => void;   // optional — back button is hidden if not provided
-   };
-   ```
-   In your component, render the Atrás button only when `typeof onBack === "function"`. This stays backward-compatible with the parent file we won't touch. (The senior agent will add `onBack` to the parent in a follow-up if desired.)
-
-   - **Siguiente / Diagnosticar** button on the right (`<Button>` default variant). Disabled when `currentValue === undefined`. Label is `Diagnosticar` on the last step (`step === QUESTIONS.length - 1`), `Siguiente` otherwise. Include `<ChevronRight>` icon on non-last steps.
-
-9. **Click handler on Siguiente / Diagnosticar**:
-   ```typescript
-   function handleNext() {
-     if (currentValue === undefined) return;
-     const merged = { ...responses, [question.field]: currentValue };
-     if (step === QUESTIONS.length - 1) {
-       onComplete(merged);
-     } else {
-       onAnswer(question.field, currentValue);
-     }
-     setCurrentValue(undefined);  // clear local pick so the next step starts fresh
-   }
-   ```
-
-10. **Transitions** — wrap the question body in `framer-motion`:
-    ```tsx
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={step}
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        transition={{ duration: 0.2 }}
-      >
-        ...
-      </motion.div>
-    </AnimatePresence>
-    ```
-    The `key={step}` is critical — it tells AnimatePresence to remount on step change.
-
-### Allowed imports
-
-```typescript
-"use client";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { QUESTIONS } from "@/lib/questions";
-```
-
-No other imports. Do not introduce new shadcn components, new motion utilities, or new state libraries.
-
-### Edge cases to think through (use extended thinking)
-
-- **Step 0 with no `onBack`**: the Atrás button is hidden entirely (`{onBack && ...}` pattern), not just disabled.
-- **Boolean step where the user picks `false`**: `currentValue === false` is falsy. Your "disabled when undefined" check must distinguish `undefined` from `false`. Use `currentValue === undefined`, not `!currentValue`.
-- **AnimatePresence + key changes**: if you forget `key={step}`, the exit animation never fires. Verify by reading your own code.
-- **Default value when navigating back**: when the user goes Atrás then comes forward, the prior answer should pre-select. The initializer pattern above (`responses[question.field]`) handles this, but only on **mount**. If `step` changes while the component is mounted, you need a `useEffect` that resets `currentValue` from `responses[question.field]` whenever `step` changes. **Add this `useEffect`.**
-- **Loading screen takes the whole card**: do not render the header + body underneath when `loading` is true.
+Print the dimensions and file size in your final summary so the human knows what to expect.
 
 ### Acceptance criteria
 
 ```bash
-cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx"
 
-# 1. Stub is gone
-! grep -q "TODO: question wizard" components/QuestionWizard.tsx
+# 1. SVG exists at the expected path
+test -f frontend/public/cover.svg
 
-# 2. Named export matches the existing import in app/diagnose/page.tsx
-grep -qE 'export (function|const) QuestionWizard' components/QuestionWizard.tsx
+# 2. SVG is at least 1 KB and at most 50 KB (a 100 KB cover SVG indicates accidentally embedded raster data)
+test "$(wc -c < frontend/public/cover.svg)" -gt 1000
+test "$(wc -c < frontend/public/cover.svg)" -lt 50000
 
-# 3. Imports are exactly the allowed set (no surprises)
-grep -q 'from "framer-motion"' components/QuestionWizard.tsx
-grep -q 'from "@/components/ui/radio-group"' components/QuestionWizard.tsx
-grep -q 'from "@/lib/questions"' components/QuestionWizard.tsx
-! grep -qE 'from "(react-hook-form|zustand|jotai|swr|@tanstack)"' components/QuestionWizard.tsx
+# 3. SVG references the correct viewBox and dimensions
+grep -q 'viewBox="0 0 1280 720"' frontend/public/cover.svg
 
-# 4. AnimatePresence with key={step}
-grep -q "AnimatePresence" components/QuestionWizard.tsx
-grep -q "key={step}" components/QuestionWizard.tsx
+# 4. SVG uses the expected palette (substring match)
+grep -q "#1e3a8a" frontend/public/cover.svg
 
-# 5. Loading state text in Spanish
-grep -q "Analizando con Gemma 4" components/QuestionWizard.tsx
+# 5. SVG contains the three chip labels and the wordmark
+grep -q ">VertigoDx<" frontend/public/cover.svg
+grep -q ">Gemma 4<" frontend/public/cover.svg
+grep -q ">Ollama<" frontend/public/cover.svg
+grep -q ">100% Offline<" frontend/public/cover.svg
 
-# 6. Both step labels in Spanish
-grep -q "Siguiente" components/QuestionWizard.tsx
-grep -q "Diagnosticar" components/QuestionWizard.tsx
-grep -q "Atrás" components/QuestionWizard.tsx
-
-# 7. The boolean undefined-vs-false discrimination
-grep -q "currentValue === undefined" components/QuestionWizard.tsx
-
-# 8. Build is green
-npm run build
+# 6. PNG was rendered at the right size
+test -f frontend/public/cover.png
+file frontend/public/cover.png | grep -q "1280 x 720"
 ```
 
-Commit message: `feat(frontend): real QuestionWizard with framer-motion transitions and 10 questions`.
+Commit message: `feat(brand): cover image SVG + PNG export (1280x720) for Kaggle submission`.
 
-Mark `D3-T03` in `backlog.yaml` as `completed`.
+Mark `D4-T08` in `backlog.yaml` as `completed`.
 
 ---
 
@@ -219,52 +155,34 @@ Mark `D3-T03` in `backlog.yaml` as `completed`.
 
 | Forbidden | Why |
 |---|---|
-| Touch `frontend/components/ResultPanel.tsx` | Owned by parallel agent. |
-| Touch `frontend/app/demo/page.tsx` | Owned by parallel agent. |
-| Touch `frontend/lib/questions.ts` | Read-only. |
-| Touch `frontend/app/diagnose/page.tsx` | The contract is fixed there; the senior agent will adjust the parent if needed. |
-| Touch ANY `backend/app/*.py` file | Backend is frozen for you. |
-| Introduce a state library (Zustand, Jotai, Redux), a form library (react-hook-form), or a new animation library | The wizard needs only `useState` + framer-motion. |
-| Add `react-hot-toast`, `sonner`, or any toast/alert library | Error display is the parent's responsibility, not yours. |
-| Optimize beyond the spec (memoization, lazy loading, suspense boundaries) | Premature. |
-| Edit `AGENT_HANDOFF*.md` files | Senior owns them. |
-| Commit under `docs/` or `resources/` | Gitignored. |
+| Touch ANY file under `frontend/components/`, `frontend/app/` (except adding `public/cover.*`), `frontend/lib/` | Other agent owns the refactor. |
+| Touch ANY `backend/app/*.py` file | Backend is frozen. |
+| Touch `frontend/app/icon.svg` | The favicon is final. |
+| Modify `README.md` | The senior agent will embed the cover image when the video link is also ready. |
+| Introduce new fonts via `@import` in the SVG | Brittle in `rsvg-convert`; stick to system fonts. |
+| Embed PNG/JPG raster data in the SVG | Defeats the point of SVG and bloats the file. |
+| Add Tailwind, react, or any code framework reference | This is a static asset, not a component. |
+| Use emojis in the cover text | Cross-platform rendering is unreliable. |
+| Mark D4-T08 as completed without producing both `cover.svg` AND `cover.png` | Both are required. |
 
 ---
 
-## 5. Final commit + push
+## 5. When to stop and ask
 
-```bash
-cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx"
-git status
-# Expected modified files only:
-#   frontend/components/QuestionWizard.tsx
-#   backlog.yaml
-#
-# If ResultPanel.tsx or app/demo/page.tsx shows as modified, STOP — that
-# means a race with the parallel agent. Report immediately.
-
-git push origin main
-```
+1. Acceptance-criteria checks fail.
+2. `rsvg-convert` isn't available and `brew install librsvg` fails.
+3. The PNG dimensions are wrong even after re-rendering.
+4. You're tempted to add an icon, emoji, or photographic element.
 
 ---
 
-## 6. When to stop and ask
+## 6. After it ships
 
-1. `npm run build` fails with TypeScript errors you can't fix in 2 attempts.
-2. `git status` shows files you don't own as modified.
-3. You realize the spec contradicts itself or the parent file.
-4. You're tempted to introduce a new library or refactor anything outside QuestionWizard.
-
----
-
-## 7. After it ships
-
-1. One-paragraph summary.
+1. One-paragraph summary including the final file sizes of `cover.svg` and `cover.png`.
 2. `git log --oneline -3`.
-3. Confirm `D3-T03` in `backlog.yaml` → completed.
+3. Confirm `D4-T08` in `backlog.yaml` → completed.
 4. Stop.
 
 ---
 
-**End of handoff.** Use extended thinking on edge cases and the `useEffect` reset. Use direct execution for the boilerplate.
+**End of handoff.** Plan the layout on paper first. Then write the SVG. Then render.

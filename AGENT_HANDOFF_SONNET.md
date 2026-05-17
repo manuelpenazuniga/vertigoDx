@@ -1,23 +1,26 @@
-# Agent handoff — Sonnet 4.6 (Day 3, parallel track A)
+# Agent handoff — Sonnet 4.6 (Day 3 wrap, round 2)
 
-**Target agent:** Claude Sonnet 4.6 (or any code-fluent agent with file-system + shell + git tools).
+**Target agent:** Claude Sonnet 4.6.
 **Author:** Claude Opus 4.7 (senior reviewer).
-**Date:** 2026-05-16.
+**Date:** 2026-05-16 (round 2 of your assignments).
+**Previous round shipped:** commits `60fcc10` and `d31692b` — ResultPanel and /demo page. Reviewed and merged. Excellent work.
 
-This document is the contract. If anything below conflicts with what you "feel" should be done, **the contract wins**. When in doubt, stop and ask the human — do not improvise.
+This document is the contract. The contract wins where it specifies behavior. When in doubt, stop and ask the human — do not improvise.
 
-You are running in **parallel** with another agent (Opus 4.6 thinking, in `AGENT_HANDOFF_OPUS46.md`). That agent is writing `QuestionWizard.tsx`. Your work and theirs are file-disjoint: do not touch any file they own.
+You are running in **parallel** with another agent (Opus 4.6 thinking, in `AGENT_HANDOFF_OPUS46.md`). That agent is producing an SVG cover image. Your work and theirs are file-disjoint.
 
 ---
 
 ## 0. Read these files first, in this order
 
 1. `CLAUDE.md`
-2. `backlog.yaml` (especially the `runtime_decisions` block — those are constraints).
-3. `README.md` (for landing-page context).
-4. This file.
+2. `backlog.yaml` (especially the `runtime_decisions` block).
+3. `frontend/components/ResultPanel.tsx` — note the inline `DiagnosisCandidate` / `StrokeAlert` / `DiagnosticResult` type definitions; you will move them to a shared file.
+4. `frontend/app/demo/page.tsx` — note the `as any` cast on line 65 with an eslint-disable. You will replace it with the new shared types.
+5. `frontend/app/diagnose/page.tsx` — note the `any | null` for `result` state and the lack of `onBack` wiring.
+6. This file.
 
-Do **not** read anything under `docs/` or `resources/` — gitignored on purpose.
+Do **not** read anything under `docs/` or `resources/`.
 
 ---
 
@@ -25,27 +28,25 @@ Do **not** read anything under `docs/` or `resources/` — gitignored on purpose
 
 | # | Rule |
 |---|---|
-| R1 | All clinical UX text in Spanish. |
+| R1 | All UX text in Spanish. |
 | R2 | All code, comments, commits in English. |
-| R3 | 100% local. No external API calls. |
-| R4 | No `dict[str, Any]` in route signatures. |
-| R5 | Confidence values are exactly `alta`, `media`, `baja`. |
-| R6 | Never commit anything under `docs/` or `resources/`. |
-| R7 | Never modify `data/demo_cases.json`. |
-| R8 | Push directly to `main` with Conventional Commits. |
-| R9 | Never touch any `backend/app/*.py` file. Backend is frozen for you. |
-| R10 | Never touch `frontend/components/QuestionWizard.tsx` — that file is owned by the Opus 4.6 thinking agent on the parallel track. |
-| R11 | Never touch `frontend/lib/questions.ts` — read-only for you. |
-| R12 | Never warm up `gemma4:26b-a4b-it-q4_K_M`. |
+| R3 | Never touch any `backend/app/*.py` file. |
+| R4 | Never touch `frontend/components/QuestionWizard.tsx` except as explicitly directed in Task C below (only its imports/usage in `/diagnose/page.tsx`, not the component itself). |
+| R5 | Never touch `frontend/lib/questions.ts`. |
+| R6 | Push directly to `main` with Conventional Commits. |
+| R7 | Never commit anything under `docs/` or `resources/`. |
+| R8 | No new dependencies. |
+| R9 | Never warm up `gemma4:26b-a4b-it-q4_K_M`. |
+| R10 | Other parallel agent owns `frontend/public/cover.svg`, `frontend/public/cover.png`, or anything matching `cover.*` — do not touch. |
 
 ---
 
 ## 2. What is already done
 
-- Backend complete and tested. `/diagnose` returns structured JSON; `/demo-cases` returns the 5 cases array.
-- Frontend bootstrapped (Next.js 16.2.6 + React 19.2.4 + shadcn/ui).
-- Landing page (`app/page.tsx`), OfflineBadge (`components/OfflineBadge.tsx`), diagnose-page shell (`app/diagnose/page.tsx`), QuestionWizard + ResultPanel **stubs**.
-- Canonical questions list at `frontend/lib/questions.ts` (10 questions, Spanish labels, values aligned with backend enums).
+- `ResultPanel`, `QuestionWizard`, `/demo` page — all real and working.
+- Backend complete; `/diagnose` and `/demo-cases` endpoints live.
+- Frontend `npm run build` is green with 4 routes.
+- 7 backend pytest unit tests + 4 light E2E tests passing.
 
 Do **not** redo any of this.
 
@@ -53,40 +54,49 @@ Do **not** redo any of this.
 
 ## 3. Your assignment
 
-Two tasks, in order: D3-T04 (ResultPanel real) then D3-T05 (/demo page).
+Three tasks in order. The first two are refactoring; the third is a small wire-up.
 
-| Task | Backlog ID | Estimated time | File(s) |
-|---|---|---|---|
-| A | D3-T04 ResultPanel real | 60 min | `frontend/components/ResultPanel.tsx` (replace stub) |
-| B | D3-T05 `/demo` page | 30 min | `frontend/app/demo/page.tsx` (new) |
-| C | Final commit + push | 5 min | git |
+| Task | Estimated time | File(s) |
+|---|---|---|
+| A | Create `frontend/lib/types.ts` with shared diagnostic types | 15 min |
+| B | Create `frontend/lib/api.ts` with typed fetch helpers | 20 min |
+| C | Refactor 3 files to consume the shared types + helpers and wire `onBack` | 30 min |
+| D | Final commit + push | 5 min |
 
 ---
 
-### Task A — D3-T04: real `ResultPanel.tsx`
+### Task A — Create `frontend/lib/types.ts`
 
-**Goal:** replace the stub at `frontend/components/ResultPanel.tsx` with a real, polished result view. This is the "wow" moment of the demo video — when the stroke alert is triggered, the red alert must be **visually dominant**.
+**Goal:** centralize the TypeScript types that mirror the backend's `DiagnosticResult` Pydantic model so the frontend stops duplicating them inline.
 
-**Component contract (TypeScript types):**
+**Required content (write exactly this file):**
 
 ```typescript
-type DiagnosisCandidate = {
+// Shared TypeScript mirror of the backend Pydantic models in
+// backend/app/schemas.py. Keep this file in sync if the backend schema
+// changes — currently it is the contract for /diagnose and /demo-cases.
+
+export type Confidence = "alta" | "media" | "baja";
+
+export type Urgency = "inmediata" | "alta" | "baja";
+
+export type DiagnosisCandidate = {
   diagnosis: string;
-  confidence: "alta" | "media" | "baja";
+  confidence: Confidence;
   supporting_criteria: string[];
   missing_criteria: string[];
   icvd_reference?: string | null;
 };
 
-type StrokeAlert = {
+export type StrokeAlert = {
   triggered: boolean;
   reason: string;
-  urgency: "inmediata" | "alta" | "baja";
+  urgency: Urgency;
   score_hints?: number | null;
   score_standing?: string | null;
 };
 
-type DiagnosticResult = {
+export type DiagnosticResult = {
   differential: DiagnosisCandidate[];
   stroke_alert: StrokeAlert;
   clinical_reasoning: string;
@@ -95,275 +105,88 @@ type DiagnosticResult = {
   processing_time_ms?: number | null;
 };
 
-type Props = {
-  result: DiagnosticResult;
-  onRestart: () => void;
+// Payload shape for POST /diagnose (mirrors PatientResponses in schemas.py).
+// Keeping it loose (Record<string, unknown>) because the wizard accumulates
+// it incrementally and validation happens server-side via Pydantic.
+export type PatientResponsesPayload = Record<string, unknown>;
+
+// Shape returned by GET /demo-cases.
+export type DemoCase = {
+  id: string;
+  label: string;
+  narrative: string;
+  responses: PatientResponsesPayload;
+  expected_top?: string;
+  expected_top_options?: string[];
+  expected_stroke_alert?: boolean;
+  expected_urgency?: Urgency;
+  note?: string;
 };
 ```
-
-Export the component as a named export `ResultPanel` (matches what `app/diagnose/page.tsx` already imports).
-
-**Required rendered structure, top to bottom:**
-
-1. **Stroke alert** (only when `result.stroke_alert.triggered === true`).
-   - Use shadcn `<Alert>` with a custom red theme.
-   - Tailwind: `border-red-500 bg-red-50 dark:bg-red-950 border-2`.
-   - Title: `🚨 ALERTA — Sospecha de causa central` (the only emoji allowed; it carries clinical meaning).
-   - Body lines in Spanish:
-     - `Urgencia: {urgency.toUpperCase()}`
-     - `{result.stroke_alert.reason}`
-     - If `score_hints !== null`: `Score HINTS-adaptado: {score_hints}`
-   - Wrap in a `framer-motion` `<motion.div>` with `initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }}`.
-
-2. **Differential diagnoses card** (always).
-   - shadcn `<Card>` with `<Brain>` icon from `lucide-react`.
-   - Title in Spanish: `Diagnóstico diferencial`.
-   - Render up to 3 candidates from `result.differential.slice(0, 3)`.
-   - Each candidate is a bordered block with:
-     - Heading: `{i+1}. {candidate.diagnosis}` and a confidence `<Badge>`.
-     - Badge color by confidence:
-       - `alta` → `bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200 border-green-300`
-       - `media` → `bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200 border-yellow-300`
-       - `baja` → `bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-slate-300`
-     - Below: if `supporting_criteria.length > 0`, render a green section with the heading `✓ Criterios cumplidos:` and a list. Tailwind `text-green-700 dark:text-green-400`. (The check mark is a Unicode glyph, not an emoji; keep it.)
-     - If `missing_criteria.length > 0`, render an amber section `✗ Criterios faltantes:` with `text-amber-700 dark:text-amber-400`.
-     - If `icvd_reference`: a small italic line at the bottom, `text-xs text-muted-foreground italic`.
-   - Wrap each candidate in `<motion.div>` with staggered entrance: `initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}`.
-
-3. **Clinical reasoning card** (always).
-   - shadcn `<Card>` with a subtle blue tint: `border-blue-200 bg-blue-50/30 dark:bg-blue-950/30`.
-   - Title in Spanish: `Razonamiento clínico`. Icon `<Brain>` from `lucide-react`.
-   - A small `<Badge variant="outline">` aligned right with the text `Gemma 4 · Local`.
-   - Body: `<p>` with the full `result.clinical_reasoning`. Use `whitespace-pre-line` so newlines from the model render.
-
-4. **Next steps card** (always).
-   - shadcn `<Card>` with `<ListChecks>` icon (lucide-react).
-   - Title in Spanish: `Próximos pasos`.
-   - Render `result.next_steps` as an ordered list. Each step is wrapped in a `<motion.li>` with staggered entrance (`delay: i * 0.1`).
-   - Step bullet: a circular number badge `<span>` with `flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex items-center justify-center text-sm font-medium`.
-
-5. **Limitations card** (always).
-   - shadcn `<Card>` with `bg-slate-100/50 dark:bg-slate-900/50`.
-   - `<Info>` icon (lucide-react), title `Limitaciones`.
-   - Body: `<p className="text-sm text-muted-foreground">{result.limitations}</p>`.
-
-6. **Disclaimer** (always).
-   - shadcn `<Alert>` (default variant).
-   - `<Info>` icon, body text in Spanish:
-     `VertigoDx es una herramienta de apoyo al diagnóstico, no un dispositivo médico aprobado. El diagnóstico definitivo y las decisiones terapéuticas son siempre responsabilidad del médico tratante.`
-   - The word `apoyo al diagnóstico` should be wrapped in `<strong>`.
-
-7. **Footer row** (always).
-   - Flex row, space-between.
-   - Left: if `result.processing_time_ms != null`, render small muted text `Procesado en {(result.processing_time_ms / 1000).toFixed(1)}s · 100% local · sin internet`.
-   - Right: shadcn `<Button variant="outline" onClick={onRestart}>` with `<RotateCcw>` icon (lucide-react) and label `Nueva evaluación`.
-
-**Wrapping layout:**
-
-```tsx
-<main className="min-h-screen bg-slate-50 dark:bg-slate-950 py-12">
-  <div className="container mx-auto px-4 max-w-3xl space-y-6">
-    {/* stroke alert (conditional) */}
-    {/* differential card */}
-    {/* clinical reasoning card */}
-    {/* next steps card */}
-    {/* limitations card */}
-    {/* disclaimer */}
-    {/* footer row */}
-  </div>
-</main>
-```
-
-**Allowed imports:**
-
-```typescript
-import { motion } from "framer-motion";
-import {
-  AlertTriangle,
-  Brain,
-  Info,
-  ListChecks,
-  RotateCcw,
-} from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-```
-
-Do not import anything else. Do not introduce new shadcn components or new dependencies.
 
 **Acceptance criteria:**
 
 ```bash
 cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
-
-# 1. The file is no longer a stub
-test -f components/ResultPanel.tsx
-grep -q "function ResultPanel\|const ResultPanel" components/ResultPanel.tsx
-! grep -q "TODO: result panel" components/ResultPanel.tsx
-
-# 2. Required pieces are present
-grep -q "Diagnóstico diferencial" components/ResultPanel.tsx
-grep -q "Razonamiento clínico" components/ResultPanel.tsx
-grep -q "Próximos pasos" components/ResultPanel.tsx
-grep -q "Limitaciones" components/ResultPanel.tsx
-grep -q "apoyo al diagnóstico" components/ResultPanel.tsx
-grep -q "Nueva evaluación" components/ResultPanel.tsx
-
-# 3. Stroke alert rendered conditionally
-grep -q "stroke_alert.triggered" components/ResultPanel.tsx
-
-# 4. Confidence badge color classes referenced
-grep -q "bg-green-100" components/ResultPanel.tsx
-grep -q "bg-yellow-100" components/ResultPanel.tsx
-
-# 5. Build is green
-npm run build
+test -f lib/types.ts
+grep -q "export type DiagnosticResult" lib/types.ts
+grep -q "export type DemoCase" lib/types.ts
+grep -q "export type Confidence" lib/types.ts
+npm run build  # exit 0
 ```
-
-Commit message: `feat(frontend): real ResultPanel with stroke alert, differential, reasoning, next steps`.
-
-Mark `D3-T04` in `backlog.yaml` as `completed`.
 
 ---
 
-### Task B — D3-T05: `/demo` page
+### Task B — Create `frontend/lib/api.ts`
 
-**Goal:** create `frontend/app/demo/page.tsx`. Lists the 5 demo cases from `GET /demo-cases`, each with an `Ejecutar` button that POSTs the case to `/diagnose` and renders the result via your new `ResultPanel`.
+**Goal:** typed fetch helpers so the pages don't repeat URL strings, headers, and error handling.
 
-**Required file contents:**
+**Required content (write exactly this file):**
 
 ```typescript
-"use client";
+// Typed wrappers around the backend HTTP API.
+//
+// All requests target localhost:8000 because the privacy invariant is that
+// the entire stack runs on the clinician's machine. If at some point we add
+// a public deploy, replace BASE_URL with process.env.NEXT_PUBLIC_API_URL —
+// do NOT introduce a new dependency for this.
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowRight, AlertTriangle } from "lucide-react";
+import type { DemoCase, DiagnosticResult, PatientResponsesPayload } from "./types";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+const BASE_URL = "http://localhost:8000";
 
-import { OfflineBadge } from "@/components/OfflineBadge";
-import { ResultPanel } from "@/components/ResultPanel";
-
-type DemoCase = {
-  id: string;
-  label: string;
-  narrative: string;
-  responses: Record<string, unknown>;
-  expected_stroke_alert?: boolean;
-};
-
-export default function DemoPage() {
-  const [cases, setCases] = useState<DemoCase[]>([]);
-  const [result, setResult] = useState<unknown | null>(null);
-  const [selectedCase, setSelectedCase] = useState<DemoCase | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetch("http://localhost:8000/demo-cases")
-      .then((r) => r.json())
-      .then((data: DemoCase[]) => setCases(data))
-      .catch((err) => {
-        console.error("Failed to load demo cases:", err);
-      });
-  }, []);
-
-  async function runCase(c: DemoCase) {
-    setLoading(true);
-    setSelectedCase(c);
-    try {
-      const res = await fetch("http://localhost:8000/diagnose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(c.responses),
-      });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const data = await res.json();
-      setResult(data);
-    } catch (err) {
-      console.error(err);
-      alert("Error al procesar el caso. Verifica que el backend esté corriendo.");
-      setSelectedCase(null);
-    } finally {
-      setLoading(false);
-    }
+export class ApiError extends Error {
+  constructor(message: string, public status?: number) {
+    super(message);
+    this.name = "ApiError";
   }
+}
 
-  function reset() {
-    setResult(null);
-    setSelectedCase(null);
+export async function fetchHealthcheck(): Promise<{ offline: boolean }> {
+  const res = await fetch(`${BASE_URL}/healthcheck`);
+  if (!res.ok) throw new ApiError("Healthcheck failed", res.status);
+  return res.json();
+}
+
+export async function fetchDemoCases(): Promise<DemoCase[]> {
+  const res = await fetch(`${BASE_URL}/demo-cases`);
+  if (!res.ok) throw new ApiError("Failed to load demo cases", res.status);
+  return res.json();
+}
+
+export async function postDiagnose(
+  payload: PatientResponsesPayload,
+): Promise<DiagnosticResult> {
+  const res = await fetch(`${BASE_URL}/diagnose`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(`Diagnose failed: ${body || res.statusText}`, res.status);
   }
-
-  if (result && selectedCase) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const typed = result as any;
-    return (
-      <>
-        <OfflineBadge />
-        <div className="bg-slate-100 dark:bg-slate-900 py-3 px-4 text-center text-sm">
-          Caso demo: <strong>{selectedCase.label}</strong> · {selectedCase.narrative}
-        </div>
-        <ResultPanel result={typed} onRestart={reset} />
-      </>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 py-12">
-      <OfflineBadge />
-      <div className="container mx-auto px-4 max-w-3xl space-y-6">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Casos demo</h1>
-          <p className="text-muted-foreground">
-            5 casos clínicos guionizados que muestran las capacidades de VertigoDx
-            en BPPV, Ménière, migraña vestibular, sospecha de stroke y comorbilidad.
-          </p>
-        </div>
-
-        {loading && (
-          <Card className="p-8 text-center">
-            <p className="font-medium">Procesando con Gemma 4...</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Aplicando criterios ICVD · Calculando triaje · Generando razonamiento
-            </p>
-          </Card>
-        )}
-
-        {!loading &&
-          cases.map((c) => (
-            <Card key={c.id} className="p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg">{c.label}</h3>
-                    {c.expected_stroke_alert && (
-                      <Badge variant="destructive">
-                        <AlertTriangle className="w-3 h-3 mr-1" />
-                        Alerta de causa central
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{c.narrative}</p>
-                </div>
-                <Button onClick={() => runCase(c)} disabled={loading}>
-                  Ejecutar
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-
-        <div className="text-center pt-4">
-          <Link href="/diagnose">
-            <Button variant="outline">O ingresa un caso nuevo manualmente</Button>
-          </Link>
-        </div>
-      </div>
-    </main>
-  );
+  return res.json();
 }
 ```
 
@@ -371,48 +194,153 @@ export default function DemoPage() {
 
 ```bash
 cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
-
-# 1. File exists in the right place
-test -f app/demo/page.tsx
-
-# 2. Imports ResultPanel and OfflineBadge
-grep -q 'from "@/components/ResultPanel"' app/demo/page.tsx
-grep -q 'from "@/components/OfflineBadge"' app/demo/page.tsx
-
-# 3. Fetches /demo-cases and POSTs /diagnose
-grep -q 'localhost:8000/demo-cases' app/demo/page.tsx
-grep -q 'localhost:8000/diagnose' app/demo/page.tsx
-
-# 4. Build is green
-npm run build
+test -f lib/api.ts
+grep -q "export async function postDiagnose" lib/api.ts
+grep -q "export async function fetchDemoCases" lib/api.ts
+grep -q "export class ApiError" lib/api.ts
+npm run build  # exit 0
 ```
-
-Commit message: `feat(frontend): /demo page with one-click execution against the 5 demo cases`.
-
-Mark `D3-T05` in `backlog.yaml` as `completed`.
 
 ---
 
-### Task C — Final commit + push
+### Task C — Refactor 3 files to use the shared types + helpers
+
+**Goal:** remove duplicated types and inline fetch calls. Wire `onBack` from `/diagnose/page.tsx` to `QuestionWizard`. **Do NOT modify QuestionWizard itself** — it already accepts an optional `onBack` prop.
+
+**Edit 1: `frontend/components/ResultPanel.tsx`**
+
+Currently defines `DiagnosisCandidate`, `StrokeAlert`, and `DiagnosticResult` inline (lines 16-39 in the current file). Remove those local type definitions and import them from `@/lib/types` instead. The `Props` type and the rest of the component stay unchanged.
+
+Specifically:
+- Delete the inline type definitions for `DiagnosisCandidate`, `StrokeAlert`, `DiagnosticResult` (≈ 25 lines).
+- Add this import near the top:
+  ```typescript
+  import type { DiagnosticResult } from "@/lib/types";
+  ```
+- The `Props` type stays as is (it references `DiagnosticResult` which is now imported).
+
+**Edit 2: `frontend/app/demo/page.tsx`**
+
+Currently defines its own local `DemoCase` type (lines 14-20), uses `unknown | null` for `result`, and contains `// eslint-disable-next-line @typescript-eslint/no-explicit-any` with an `as any` cast (lines 64-65).
+
+Replace those with:
+- Import `DemoCase` and `DiagnosticResult` from `@/lib/types`.
+- Type `result` as `DiagnosticResult | null` instead of `unknown | null`.
+- Delete the local `DemoCase` type.
+- Delete the eslint-disable comment AND the `as any` cast — just pass `result` directly to `<ResultPanel result={result} onRestart={reset} />` after the truthy check (TypeScript will narrow it).
+- Replace the inline `fetch("http://localhost:8000/demo-cases")` block with `fetchDemoCases()`.
+- Replace the inline `fetch("http://localhost:8000/diagnose", { method: "POST", ... })` block with `postDiagnose(c.responses)`.
+
+After the edit, the file should:
+- Import: `import { fetchDemoCases, postDiagnose } from "@/lib/api";` and `import type { DemoCase, DiagnosticResult } from "@/lib/types";`.
+- No `as any`, no eslint-disable, no inline URLs.
+
+**Edit 3: `frontend/app/diagnose/page.tsx`**
+
+Currently uses `any | null` for `result`, has inline `fetch("http://localhost:8000/diagnose", ...)`, and does NOT pass `onBack` to QuestionWizard.
+
+Make these specific changes:
+
+1. Import the helpers + types:
+   ```typescript
+   import { postDiagnose } from "@/lib/api";
+   import type { DiagnosticResult } from "@/lib/types";
+   ```
+
+2. Change `useState<any | null>(null)` to `useState<DiagnosticResult | null>(null)`.
+
+3. Replace the body of `handleSubmit` so it calls `postDiagnose(payload)` instead of the inline `fetch`.
+
+4. Add a `step` decrement handler and pass it as `onBack` to `<QuestionWizard>`:
+   ```typescript
+   const handleBack = () => setStep((s) => Math.max(0, s - 1));
+   ```
+   Then in the JSX:
+   ```tsx
+   <QuestionWizard
+     step={step}
+     responses={responses}
+     onAnswer={handleAnswer}
+     onComplete={handleSubmit}
+     onBack={handleBack}
+     loading={loading}
+   />
+   ```
+
+5. The current `handleAnswer` does not bump `step`. Update it so it does — that's the user expectation now that the wizard advances internally **and** asks the parent to track it. Replace:
+   ```typescript
+   const handleAnswer = (field: string, value: any) => {
+     setResponses((prev) => ({ ...prev, [field]: value }));
+   };
+   ```
+   with:
+   ```typescript
+   const handleAnswer = (field: string, value: string | boolean) => {
+     setResponses((prev) => ({ ...prev, [field]: value }));
+     setStep((s) => s + 1);
+   };
+   ```
+   Note the typed parameter `value: string | boolean` instead of `any`.
+
+**Acceptance criteria for Task C:**
+
+```bash
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
+
+# 1. No inline duplicated types remain
+! grep -q '^type DiagnosisCandidate' components/ResultPanel.tsx
+! grep -q '^type StrokeAlert' components/ResultPanel.tsx
+! grep -q '^type DiagnosticResult' components/ResultPanel.tsx
+! grep -q '^type DemoCase' app/demo/page.tsx
+
+# 2. The shared types are imported
+grep -q '@/lib/types' components/ResultPanel.tsx
+grep -q '@/lib/types' app/demo/page.tsx
+grep -q '@/lib/types' app/diagnose/page.tsx
+
+# 3. The API helper is used (no more inline fetch to /diagnose or /demo-cases)
+grep -q '@/lib/api' app/demo/page.tsx
+grep -q '@/lib/api' app/diagnose/page.tsx
+! grep -q 'localhost:8000/diagnose' app/demo/page.tsx
+! grep -q 'localhost:8000/diagnose' app/diagnose/page.tsx
+! grep -q 'localhost:8000/demo-cases' app/demo/page.tsx
+
+# 4. onBack is wired
+grep -q 'onBack={handleBack}' app/diagnose/page.tsx
+grep -q 'const handleBack' app/diagnose/page.tsx
+
+# 5. No more `as any` in the refactored files
+! grep -q 'as any' app/demo/page.tsx
+! grep -q 'eslint-disable' app/demo/page.tsx
+
+# 6. Build is green
+npm run build
+```
+
+Commit message: `refactor(frontend): shared types and API helpers, wire wizard onBack`.
+
+Mark `D3-T10` in `backlog.yaml` as `completed` (this is effectively the Day 3 closing refactor).
+
+---
+
+### Task D — Final push
 
 ```bash
 cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx"
 
 git status
 # Expected modified/new files only:
-#   frontend/components/ResultPanel.tsx
-#   frontend/app/demo/page.tsx
-#   backlog.yaml
-
-# DO NOT add or commit frontend/components/QuestionWizard.tsx
-# even if it shows as modified — that belongs to the parallel agent.
-# If it shows in git status as modified, STOP and report.
+#   frontend/lib/types.ts                   (new)
+#   frontend/lib/api.ts                     (new)
+#   frontend/components/ResultPanel.tsx     (modified)
+#   frontend/app/demo/page.tsx              (modified)
+#   frontend/app/diagnose/page.tsx          (modified)
+#   backlog.yaml                            (D3-T10 status)
+#
+# Anything under docs/, resources/, or matching cover.* or icon.svg = STOP.
 
 git push origin main
 ```
-
-If you committed per-task, just push. If you batched, use the commit message
-in Task B section as the final commit.
 
 ---
 
@@ -420,59 +348,33 @@ in Task B section as the final commit.
 
 | Forbidden | Why |
 |---|---|
-| Touch `frontend/components/QuestionWizard.tsx` | Owned by parallel agent. |
+| Touch `frontend/components/QuestionWizard.tsx` | The component is finalized; only its usage in `/diagnose/page.tsx` changes. |
+| Touch `frontend/components/OfflineBadge.tsx` | Stable. |
 | Touch `frontend/lib/questions.ts` | Read-only. |
-| Touch ANY `backend/app/*.py` file | Backend is frozen for you. |
-| Add new shadcn components, new dependencies | Stick to what is already installed. |
-| Use any emoji other than `🚨` (in the stroke alert title) | The stroke alert glyph is intentional. |
-| Edit `backend/app/prompts.py` | Reserved for senior. |
-| Commit anything in `docs/` or `resources/` | Gitignored on purpose. |
-| Edit `AGENT_HANDOFF*.md` files | They are owned by the senior agent. |
-| Run `ollama pull` on any new model | Three models are fixed. |
+| Touch `frontend/app/page.tsx`, `frontend/app/layout.tsx`, `frontend/app/icon.svg` | Out of scope. |
+| Touch ANY `backend/app/*.py` file | Backend is frozen. |
+| Touch files matching `cover.*` (any extension, any directory) | Owned by parallel agent. |
+| Add new shadcn components, new dependencies | Stick to what is installed. |
+| Refactor `QuestionWizard.tsx`'s internal `internalStep` state | The parallel-agent solution is correct; don't second-guess it. |
 
 ---
 
 ## 5. When to stop and ask the human
 
 1. Any acceptance-criteria check returns a failure.
-2. `npm run build` produces errors you can't fix in 2 attempts.
-3. `git status` shows `QuestionWizard.tsx` as modified (means a race with the parallel agent).
-4. `git status` shows files under `docs/` or `resources/`.
-5. A `backend/app/*.py` file shows as modified.
-6. You're tempted to introduce a new component, dependency, or animation library.
-
-When stopping, report: which task, which command failed, exact stderr, what you were about to try.
+2. `npm run build` produces TypeScript errors you can't fix in 2 attempts.
+3. `git status` shows files outside your assigned set as modified.
+4. You're tempted to "improve" QuestionWizard, types, or helpers beyond the spec.
 
 ---
 
-## 6. After Tasks A–C ship: hand back
+## 6. After Tasks A–D ship
 
-1. One-paragraph summary of what changed.
-2. List the commits you pushed (`git log --oneline -5`).
-3. Confirm in `backlog.yaml`: `D3-T04` → completed, `D3-T05` → completed.
+1. One-paragraph summary.
+2. `git log --oneline -5`.
+3. Confirm `D3-T10` → completed.
 4. Stop.
 
 ---
 
-## 7. Reference: how to verify any time
-
-```bash
-cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
-npm run build              # exit 0
-```
-
-For full end-to-end verification (optional — only if you want to see your
-ResultPanel render against real data):
-
-```bash
-cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/backend"
-.venv/bin/uvicorn app.main:app --port 8000 &
-until curl -fsS http://127.0.0.1:8000/healthcheck >/dev/null 2>&1; do sleep 5; done
-cd ../frontend && npm run dev
-# In another terminal: open http://localhost:3000/demo and click case_01.
-# Kill both when done.
-```
-
----
-
-**End of handoff.** Read it once more before starting.
+**End of handoff.**
