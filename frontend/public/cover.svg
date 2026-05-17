@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="url(#bg)"/>
+
+  <!-- Wordmark -->
+  <text x="640" y="270"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="108" font-weight="800" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff" letter-spacing="-2">VertigoDx</text>
+
+  <!-- Subtitle -->
+  <text x="640" y="330"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="28" font-weight="500" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff" opacity="0.85">Privacy-First Vestibular Diagnosis AI for Underserved Latin American Clinics</text>
+
+  <!-- Chip row: 3 pills, each 200x56, gap 24, total width = 648, centered at x=640 -->
+  <!-- Chip 1: Gemma 4 (blue) -->
+  <rect x="316" y="392" width="200" height="56" rx="28" fill="#3b82f6"/>
+  <text x="416" y="425"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="600" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff">Gemma 4</text>
+
+  <!-- Chip 2: Ollama (dark) -->
+  <rect x="540" y="392" width="200" height="56" rx="28" fill="#262626"/>
+  <text x="640" y="425"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="600" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff">Ollama</text>
+
+  <!-- Chip 3: 100% Offline (green) -->
+  <rect x="764" y="392" width="200" height="56" rx="28" fill="#10b981"/>
+  <text x="864" y="425"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="600" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff">100% Offline</text>
+
+  <!-- Footer attribution -->
+  <text x="640" y="660"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="17" font-weight="400" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff" opacity="0.6">Built for the Gemma 4 Good Hackathon · May 2026</text>
+</svg>

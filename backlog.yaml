@@ -1054,7 +1054,7 @@ tasks:
       - "PNG file exists, dimensions exactly 1280x720"
       - "Contains the words 'VertigoDx' and 'Gemma 4'"
     dependencies: ["D4-T01"]
-    status: pending
+    status: completed
 
   - id: D4-T09
     day: 4
