@@ -1,4 +1,5 @@
-"""Gemma 4 client via Ollama, with load-aware model autoscaler.
+"""Gemma 4 client via Ollama, with load-aware model autoscaler and
+Self-Consistency safety for stroke cases.
 
 Memory model on a 24GB Apple Silicon Mac:
     - gemma4:e4b               ≈  9.6 GB RAM   → primary, cheap, low-pressure
@@ -9,8 +10,18 @@ when the deterministic triage layer has flagged a stroke (where clinical
 reasoning quality matters most). The OLLAMA_MAX_LOADED_MODELS=1 service
 setting guarantees the two models do not co-reside in RAM.
 
-Override: `VERTIGODX_FORCE_HEAVY=1` pins every call to 26b — useful for
-demo-day recording where model consistency matters.
+Self-Consistency (Wang et al., ICLR 2023): for stroke-triggered cases, run
+the LLM 3 times with varying temperature and verify that all paths agree on
+the urgency-referral framing (V2 prompt invariant: first sentence starts
+with "Derivación" or "Activar"). The extra cost (3× inference) is paid only
+where the patient's life is at risk; non-stroke cases keep the single-call
+path. The returned dict carries `_consensus_paths` and
+`_consensus_agreement_ratio` keys so callers can surface disagreement to
+the clinician.
+
+Overrides:
+    VERTIGODX_FORCE_HEAVY=1       → pin every call to 26b (demo-day mode)
+    VERTIGODX_SELF_CONSISTENCY=0  → disable SC even on stroke (fast iteration)
 """
 from __future__ import annotations
 
@@ -26,8 +37,13 @@ from .prompts import SYSTEM_PROMPT_ACTIVE, build_user_prompt
 MODEL_LIGHT = "gemma4:e4b"
 MODEL_HEAVY = "gemma4:26b-a4b-it-q4_K_M"
 
-# Env var to force-pin the heavy model for the entire process
+# Env vars
 ENV_FORCE_HEAVY = "VERTIGODX_FORCE_HEAVY"
+ENV_DISABLE_SC = "VERTIGODX_SELF_CONSISTENCY"  # set to "0" to disable
+
+# Self-Consistency parameters
+SC_TEMPERATURES: tuple[float, ...] = (0.3, 0.5, 0.7)
+SC_URGENCY_PREFIXES: tuple[str, ...] = ("derivación", "activar")
 
 
 def pick_model(stroke_triggered: bool) -> str:
@@ -64,10 +80,13 @@ def reason_clinically(
         temperature:       sampling temperature (default low for medical use).
 
     Returns:
-        A dict with at minimum these three keys:
+        A dict with at minimum these five keys:
             - "clinical_reasoning": str
             - "next_steps": list[str]
             - "limitations": str
+            - "_consensus_paths": int (1 for non-stroke; up to len(SC_TEMPERATURES) for stroke)
+            - "_consensus_agreement_ratio": float in [0.0, 1.0]
+              (fraction of paths whose reasoning starts with an urgency cue)
 
     Falls back to the light model if the chosen model raises an error.
     """
@@ -75,7 +94,58 @@ def reason_clinically(
     user_prompt = build_user_prompt(
         responses_summary, rule_candidates, stroke_alert, rag_context
     )
-    return _call_ollama_with_fallback(chosen, user_prompt, temperature)
+
+    # Self-Consistency only activates for stroke cases (where reasoning
+    # quality matters most) and only when the env override isn't disabling it.
+    use_self_consistency = (
+        stroke_triggered and os.getenv(ENV_DISABLE_SC, "1") != "0"
+    )
+
+    if not use_self_consistency:
+        out = _call_ollama_with_fallback(chosen, user_prompt, temperature)
+        # Sentinel values so downstream consumers can treat all responses uniformly.
+        out["_consensus_paths"] = 1
+        out["_consensus_agreement_ratio"] = 1.0
+        return out
+
+    return _self_consistent_reasoning(chosen, user_prompt)
+
+
+def _self_consistent_reasoning(model: str, user_prompt: str) -> dict:
+    """Run N inference paths with varying temperature; vote on urgency framing.
+
+    Returns the lowest-temperature output (most deterministic) augmented with
+    consensus metadata. If any path raises an exception it is skipped — only
+    a complete failure (zero successful paths) propagates the error up.
+    """
+    outputs: list[dict] = []
+    for t in SC_TEMPERATURES:
+        try:
+            outputs.append(_call_ollama_with_fallback(model, user_prompt, t))
+        except Exception:
+            # Don't let one failed path bring down the whole vote.
+            continue
+
+    if not outputs:
+        raise RuntimeError(
+            f"All {len(SC_TEMPERATURES)} self-consistency paths failed for stroke case"
+        )
+
+    urgency_votes = sum(
+        1 for o in outputs if _starts_with_urgency_cue(o.get("clinical_reasoning", ""))
+    )
+    agreement_ratio = urgency_votes / len(outputs)
+
+    best = outputs[0]  # lowest temperature = most stable
+    best["_consensus_paths"] = len(outputs)
+    best["_consensus_agreement_ratio"] = agreement_ratio
+    return best
+
+
+def _starts_with_urgency_cue(reasoning: str) -> bool:
+    """V2 prompt invariant: first sentence starts with 'Derivación' or 'Activar'."""
+    first = reasoning.split(".", 1)[0].strip().lower()
+    return any(first.startswith(p) for p in SC_URGENCY_PREFIXES)
 
 
 def _call_ollama_with_fallback(model: str, user_prompt: str, temperature: float) -> dict:
