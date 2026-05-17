@@ -124,3 +124,16 @@ class DiagnosticResult(BaseModel):
     next_steps: list[str]
     limitations: str
     processing_time_ms: int | None = None
+    # --- traceability fields (round 4) ---
+    model_used: str | None = Field(
+        default=None,
+        description="Ollama model name that produced clinical_reasoning (e.g. 'gemma4:e4b').",
+    )
+    generated_at: str | None = Field(
+        default=None,
+        description="ISO 8601 UTC timestamp of when the response was produced.",
+    )
+    corpus_version: str | None = Field(
+        default=None,
+        description="First 12 hex chars of SHA-256 of icvd_corpus.md — for reproducibility.",
+    )

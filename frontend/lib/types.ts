@@ -29,6 +29,10 @@ export type DiagnosticResult = {
   next_steps: string[];
   limitations: string;
   processing_time_ms?: number | null;
+  // --- traceability fields (round 4) ---
+  model_used?: string | null;
+  generated_at?: string | null;
+  corpus_version?: string | null;
 };
 
 // Payload shape for POST /diagnose (mirrors PatientResponses in schemas.py).

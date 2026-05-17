@@ -12,9 +12,11 @@ Pipeline (per `POST /diagnose`):
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 import ollama
@@ -22,11 +24,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from .llm import MODEL_HEAVY, MODEL_LIGHT, reason_clinically
-from .rag import get_store
+from .llm import MODEL_HEAVY, MODEL_LIGHT, pick_model, reason_clinically
+from .rag import CORPUS_PATH, get_store
 from .rules import run_all_rules
 from .schemas import DiagnosisCandidate, DiagnosticResult, PatientResponses, StrokeAlert
 from .triage import calculate_stroke_alert
+
+# SHA-256 of icvd_corpus.md — computed once at import time (static per process).
+CORPUS_VERSION: str = hashlib.sha256(CORPUS_PATH.read_bytes()).hexdigest()[:12]
 
 
 @asynccontextmanager
@@ -162,6 +167,9 @@ def diagnose(responses: PatientResponses) -> DiagnosticResult:
         next_steps=llm_output.get("next_steps", []),
         limitations=llm_output.get("limitations", ""),
         processing_time_ms=elapsed_ms,
+        model_used=pick_model(stroke_triggered=stroke_alert.triggered),
+        generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        corpus_version=CORPUS_VERSION,
     )
 
 
@@ -244,6 +252,9 @@ async def diagnose_stream(responses: PatientResponses) -> StreamingResponse:
             next_steps=llm_output.get("next_steps", []),
             limitations=llm_output.get("limitations", ""),
             processing_time_ms=elapsed_ms,
+            model_used=pick_model(stroke_triggered=stroke_alert.triggered),
+            generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            corpus_version=CORPUS_VERSION,
         )
         yield _sse("reasoning", result.model_dump(mode="json"))
 

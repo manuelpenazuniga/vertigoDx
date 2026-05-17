@@ -181,11 +181,20 @@ export function ResultPanel({ result, onRestart }: Props) {
         </Alert>
 
         {/* 7. Footer row */}
-        <div className="flex items-center justify-between pt-2">
-          <div>
+        <div className="flex items-end justify-between pt-2 gap-4">
+          <div className="space-y-1 text-xs text-muted-foreground">
             {processing_time_ms != null && (
-              <p className="text-xs text-muted-foreground">
+              <p>
                 Procesado en {(processing_time_ms / 1000).toFixed(1)}s · 100% local · sin internet
+              </p>
+            )}
+            {(result.model_used || result.generated_at || result.corpus_version) && (
+              <p className="font-mono text-[10px] leading-tight">
+                {result.model_used && <>Modelo: {result.model_used}</>}
+                {result.model_used && result.generated_at && <> · </>}
+                {result.generated_at && <>Generado: {result.generated_at}</>}
+                {(result.model_used || result.generated_at) && result.corpus_version && <> · </>}
+                {result.corpus_version && <>Corpus: {result.corpus_version}</>}
               </p>
             )}
           </div>
