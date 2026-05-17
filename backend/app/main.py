@@ -11,6 +11,7 @@ Pipeline (per `POST /diagnose`):
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from contextlib import asynccontextmanager
@@ -19,8 +20,9 @@ from pathlib import Path
 import ollama
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
-from .llm import MODEL_LIGHT, reason_clinically
+from .llm import MODEL_HEAVY, MODEL_LIGHT, reason_clinically
 from .rag import get_store
 from .rules import run_all_rules
 from .schemas import DiagnosisCandidate, DiagnosticResult, PatientResponses, StrokeAlert
@@ -161,3 +163,91 @@ def diagnose(responses: PatientResponses) -> DiagnosticResult:
         limitations=llm_output.get("limitations", ""),
         processing_time_ms=elapsed_ms,
     )
+
+
+def _sse(stage: str, payload: dict) -> str:
+    """Format one Server-Sent Events frame.
+
+    Uses ensure_ascii=False so Spanish characters (a, e, n) travel as
+    UTF-8 directly instead of JSON-escaped sequences.
+    """
+    body = json.dumps({"stage": stage, "payload": payload}, ensure_ascii=False)
+    return f"data: {body}\n\n"
+
+
+@app.post("/diagnose/stream")
+async def diagnose_stream(responses: PatientResponses) -> StreamingResponse:
+    """Stream the diagnostic pipeline as Server-Sent Events.
+
+    Mirrors POST /diagnose semantically but pushes per-stage updates so the
+    frontend can render progressive feedback during the 3-5s Gemma inference.
+    The autoscaler decision is unchanged -- stroke-triggered cases still
+    route through the heavy model via pick_model().
+    """
+
+    async def event_generator():
+        start = time.perf_counter()
+
+        # Stage 1: deterministic rule engine
+        candidates = run_all_rules(responses)
+        yield _sse("rules", {"candidates": [c.model_dump(mode="json") for c in candidates]})
+        await asyncio.sleep(0)  # yield to event loop so the frame flushes
+
+        # Stage 2: stroke triage (drives the autoscaler)
+        stroke_alert = calculate_stroke_alert(responses)
+        yield _sse("triage", {"stroke_alert": stroke_alert.model_dump(mode="json")})
+        await asyncio.sleep(0)
+
+        # Stage 3: RAG retrieval (emit titles only — chunk bodies are too noisy)
+        store = get_store()
+        rag_query = (
+            f"{candidates[0].diagnosis} {candidates[1].diagnosis} criterios diagnosticos"
+        )
+        rag_chunks = store.retrieve(rag_query, k=3)
+        rag_context = "\n\n".join(c["content"] for c in rag_chunks)
+        yield _sse("rag", {
+            "chunks_retrieved": len(rag_chunks),
+            "titles": [c["title"] for c in rag_chunks],
+        })
+        await asyncio.sleep(0)
+
+        # Optional: notify the client that the heavy model is loading.
+        # When stroke_alert.triggered is true, the autoscaler routes to
+        # the 17 GB 26b model which may need 30+ seconds to load from
+        # disk the first time. This event lets the frontend show a
+        # specific loading message instead of a generic spinner.
+        if stroke_alert.triggered:
+            yield _sse("model_loading", {"model": MODEL_HEAVY})
+            await asyncio.sleep(0)
+
+        # Stage 4: Gemma reasoning — the slow step.
+        # ollama.chat() is blocking I/O. Running it directly in the async
+        # generator would block the event loop, preventing earlier events
+        # from flushing to the client (they'd all arrive at once when the
+        # LLM finishes). asyncio.to_thread offloads it to a thread pool,
+        # keeping the event loop free to push the rules/triage/rag events
+        # to the response writer while the model runs.
+        llm_output = await asyncio.to_thread(
+            reason_clinically,
+            responses_summary=_format_responses_for_llm(responses),
+            rule_candidates=_format_candidates_for_llm(candidates),
+            stroke_alert=_format_stroke_alert(stroke_alert),
+            rag_context=rag_context,
+            stroke_triggered=stroke_alert.triggered,
+        )
+
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        result = DiagnosticResult(
+            differential=candidates[:3],
+            stroke_alert=stroke_alert,
+            clinical_reasoning=llm_output.get("clinical_reasoning", ""),
+            next_steps=llm_output.get("next_steps", []),
+            limitations=llm_output.get("limitations", ""),
+            processing_time_ms=elapsed_ms,
+        )
+        yield _sse("reasoning", result.model_dump(mode="json"))
+
+        # Stage 5: complete sentinel — client should close the stream.
+        yield _sse("complete", {"processing_time_ms": elapsed_ms})
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

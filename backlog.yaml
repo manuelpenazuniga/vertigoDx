@@ -593,8 +593,7 @@ tasks:
       - "`curl http://localhost:8000/demo-cases | jq 'length'` returns 5"
       - "After server startup, the first `curl POST /diagnose` returns within 8 seconds (warmup happened)"
     dependencies: ["D2-T03"]
-    progress_note: "demo-cases endpoint completed by Gemini handoff round 2 on 2026-05-16; /diagnose/stream and startup warmup still pending"
-    status: pending
+    status: completed
 
   - id: D2-T07
     day: 2
