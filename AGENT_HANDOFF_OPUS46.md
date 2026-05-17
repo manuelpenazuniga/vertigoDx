@@ -1,26 +1,27 @@
-# Agent handoff — Opus 4.6 thinking (round 3)
+# Agent handoff — Opus 4.6 thinking (round 4)
 
 **Target agent:** Claude Opus 4.6 with extended thinking enabled.
 **Author:** Claude Opus 4.7 (senior reviewer).
-**Date:** 2026-05-16, round 3.
-**Previous rounds shipped:** commits `9d1e408` (QuestionWizard with internalStep defense), `6240af0` (cover.svg + cover.png). Both reviewed and merged with high marks.
+**Date:** 2026-05-17, round 4.
+**Previous rounds shipped:** `9d1e408` (QuestionWizard with internalStep), `6240af0` (cover image), `c38416f` (SSE backend endpoint). All landed with high marks.
 
-This document is the contract. Use extended thinking on the streaming lifecycle and shutdown handling. Use direct execution on the boilerplate of the endpoint signature.
+This is the **WOW round**. Your work today is what the judges see in the 3-minute video. Use extended thinking on animation timing and state transitions — the difference between "demo works" and "judges remember it" is precisely in those details.
 
-You are running in **parallel** with Sonnet 4.6 (see `AGENT_HANDOFF_SONNET.md`). Sonnet is writing `CONTRIBUTING.md`, `SECURITY.md`, and enhancing `OfflineBadge.tsx`. Your work and theirs are file-disjoint.
+You are running in **parallel** with Sonnet 4.6 (`AGENT_HANDOFF_SONNET.md`). Sonnet adds two backend fields and renders them in ResultPanel footer. Your work touches `ResultPanel` too — you both need to coordinate. **Sonnet only adds to the footer; you work everywhere else.** Read Sonnet's handoff section 3 if you want to verify scope boundaries.
 
 ---
 
 ## 0. Read these files first, in this order
 
-1. `CLAUDE.md` — invariants, code style.
-2. `backlog.yaml` — see D2-T06 (your target), runtime_decisions.
-3. `backend/app/main.py` — the file you will modify (additively only — do not change `/healthcheck`, `/demo-cases`, `/diagnose`, or the lifespan hook).
-4. `backend/app/llm.py` — read-only context. Understand `pick_model()` and the autoscaler before touching anything that calls `reason_clinically`.
-5. `backend/app/rules.py`, `backend/app/triage.py`, `backend/app/rag.py` — read-only context. Your endpoint reuses them; understand their signatures.
-6. This file.
+1. `CLAUDE.md`
+2. `backlog.yaml` (especially `runtime_decisions`)
+3. `backend/app/main.py` — the streaming endpoint is at line 178+. Read the event payload shape carefully.
+4. `frontend/lib/api.ts` — you will add a new `streamDiagnose` helper here.
+5. `frontend/app/diagnose/page.tsx` and `frontend/app/demo/page.tsx` — the two callers you migrate.
+6. `frontend/components/QuestionWizard.tsx` — its loading state goes away when you take over with the pipeline view.
+7. This file.
 
-Do **not** read anything under `docs/` or `resources/` — gitignored.
+Do **not** read anything under `docs/` or `resources/`.
 
 ---
 
@@ -28,225 +29,345 @@ Do **not** read anything under `docs/` or `resources/` — gitignored.
 
 | # | Rule |
 |---|---|
-| R1 | All clinical UX strings remain in Spanish — JSON payload values too. |
+| R1 | All UX strings in Spanish. |
 | R2 | All code, comments, commits in English. |
-| R3 | Never modify the existing `/healthcheck`, `/demo-cases`, `/diagnose` endpoints. ONLY add a new endpoint. |
-| R4 | Never modify the lifespan hook or the `warmup` call. |
-| R5 | Never modify `llm.py`, `rules.py`, `triage.py`, `rag.py`, `schemas.py`, `prompts.py`. |
-| R6 | The autoscaler invariant is sacred. Your new endpoint must pass `stroke_triggered=stroke_alert.triggered` to `reason_clinically` (or equivalent). Do NOT route the heavy model directly. |
-| R7 | Push directly to `main` with Conventional Commits. |
-| R8 | Never commit under `docs/` or `resources/`. |
-| R9 | No new dependencies. |
-| R10 | The parallel Sonnet 4.6 agent is touching `frontend/components/OfflineBadge.tsx`, `CONTRIBUTING.md`, `SECURITY.md`. Do not touch any of those. |
+| R3 | Never modify any `backend/app/*.py` file. The SSE endpoint already works. |
+| R4 | Never touch `frontend/components/ResultPanel.tsx` except to consume the new field `pipeline_events` (you'll add it to props if needed). The footer additions belong to Sonnet. |
+| R5 | The `postDiagnose` helper in `lib/api.ts` stays where it is — do NOT delete it. Add `streamDiagnose` alongside. |
+| R6 | Push directly to `main` with Conventional Commits. |
+| R7 | Never commit under `docs/` or `resources/`. |
+| R8 | No new dependencies. The SSE consumer uses the native `fetch + ReadableStream` API. |
+| R9 | Sonnet 4.6 owns `model_used`, `timestamp`, and `corpus_version` fields in `DiagnosticResult` + their rendering in `ResultPanel` footer. Do NOT touch those. |
 
 ---
 
 ## 2. What is already done
 
-- Backend: `/healthcheck`, `/diagnose`, `/demo-cases` endpoints live. Rule engine, triage, RAG, Gemma 4 client with load-aware autoscaler all functional. 7 unit tests + 4 light E2E tests passing.
-- Frontend: complete. The streaming endpoint you add today will be consumed in a future task — your scope is backend-only.
+- Backend: `POST /diagnose/stream` emits SSE events in order: `rules`, `triage`, `rag`, optional `model_loading`, `reasoning`, `complete`. The endpoint is fully tested (curl examples in commit `c38416f`).
+- Backend: `POST /diagnose` (the sync sibling) still exists and stays as a fallback path.
+- Frontend: `lib/api.ts` has `postDiagnose` and `fetchDemoCases`. `ResultPanel` renders fine. Two pages consume it: `/diagnose` (wizard flow) and `/demo` (one-click cases).
+
+You are NOT redoing any of this.
 
 ---
 
-## 3. Your assignment — D2-T06 (the streaming half)
+## 3. Your assignment
 
-D2-T06 has three parts: `/demo-cases`, `/diagnose/stream`, and a startup warmup. The first and third are already shipped (Gemini and Day-1 me). You finish the second.
-
-### Goal
-
-Add `POST /diagnose/stream` that mirrors the synchronous `/diagnose` endpoint but emits progress events via Server-Sent Events (SSE). The frontend can subscribe with `EventSource` and render each stage as it completes — making the 3-5-second Gemma inference feel responsive instead of opaque.
-
-### Event format
-
-The stream emits text/event-stream chunks. Each chunk is one `data:` line followed by a blank line, per the SSE spec:
-
-```
-data: {"stage": "rules", "payload": {...}}
-
-data: {"stage": "triage", "payload": {...}}
-
-...
-```
-
-Specifically, emit these five events in order, exactly once each:
-
-| Stage | Payload shape | When |
+| Task | Estimated time | File(s) |
 |---|---|---|
-| `rules` | `{"candidates": [DiagnosisCandidate, ...]}` | Immediately after `run_all_rules()` returns. |
-| `triage` | `{"stroke_alert": StrokeAlert}` | After `calculate_stroke_alert()`. |
-| `rag` | `{"chunks_retrieved": int, "titles": [str, ...]}` | After RAG retrieval. Do NOT include chunk bodies — too noisy on the wire. |
-| `reasoning` | The full DiagnosticResult object (same shape as the sync endpoint's response) | After Gemma completes. |
-| `complete` | `{"processing_time_ms": int}` | Final signal. The client should close the stream after this. |
+| A | Add `streamDiagnose` helper to `lib/api.ts` | 30 min |
+| B | Create `PipelineProgress.tsx` component | 60 min |
+| C | Wire `streamDiagnose` + `PipelineProgress` into `/demo/page.tsx` | 30 min |
+| D | Wire `streamDiagnose` + `PipelineProgress` into `/diagnose/page.tsx` (replace QuestionWizard loading state) | 30 min |
+| E | Final commit + push | 5 min |
 
-All payloads must use the existing Pydantic models' `.model_dump(mode="json")` so enum values serialize the same way as the sync endpoint.
+---
 
-### Required imports (add to `backend/app/main.py` only if not already there)
+### Task A — `streamDiagnose` helper in `lib/api.ts`
 
-```python
-import asyncio
-import json
-from fastapi.responses import StreamingResponse
+**Goal:** add a typed wrapper that consumes the SSE stream and reports each stage via a callback. Returns the final `DiagnosticResult` once the `reasoning` event arrives.
+
+**Add to `frontend/lib/api.ts`** (do not touch existing `postDiagnose`):
+
+```typescript
+import type { DemoCase, DiagnosticResult, PatientResponsesPayload } from "./types";
+
+// existing code stays...
+
+/** Stage names emitted by the backend in order. */
+export type PipelineStage =
+  | "rules"
+  | "triage"
+  | "rag"
+  | "model_loading"
+  | "reasoning"
+  | "complete";
+
+export type StageEvent = {
+  stage: PipelineStage;
+  payload: Record<string, unknown>;
+};
+
+/** Stream the /diagnose/stream SSE endpoint, calling onStage for every event.
+ *  Resolves with the final DiagnosticResult once the "reasoning" stage arrives.
+ *  Throws ApiError if the stream ends without delivering a reasoning event.
+ */
+export async function streamDiagnose(
+  payload: PatientResponsesPayload,
+  onStage: (event: StageEvent) => void,
+): Promise<DiagnosticResult> {
+  const res = await fetch(`${BASE_URL}/diagnose/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(`Stream failed: ${body || res.statusText}`, res.status);
+  }
+  if (!res.body) throw new ApiError("Stream has no body");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: DiagnosticResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // SSE frames are separated by a blank line ("\n\n").
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      if (!frame.startsWith("data: ")) continue;
+      const json = frame.slice(6);
+      let parsed: StageEvent;
+      try {
+        parsed = JSON.parse(json) as StageEvent;
+      } catch {
+        continue; // skip malformed frames defensively
+      }
+      onStage(parsed);
+      if (parsed.stage === "reasoning") {
+        result = parsed.payload as unknown as DiagnosticResult;
+      }
+    }
+  }
+
+  if (!result) throw new ApiError("Stream ended without reasoning event");
+  return result;
+}
 ```
 
-### Implementation skeleton (you fill the body)
+**Acceptance:**
 
-```python
-@app.post("/diagnose/stream")
-async def diagnose_stream(responses: PatientResponses) -> StreamingResponse:
-    """Stream the diagnostic pipeline as Server-Sent Events.
-
-    Mirrors POST /diagnose semantically but pushes per-stage updates so the
-    frontend can render progressive feedback during the Gemma inference.
-    The autoscaler decision is unchanged — stroke-triggered cases still
-    route through the heavy model.
-    """
-
-    async def event_generator():
-        start = time.perf_counter()
-
-        # Stage 1: rules
-        candidates = run_all_rules(responses)
-        yield _sse("rules", {"candidates": [c.model_dump(mode="json") for c in candidates]})
-        await asyncio.sleep(0)  # let the event flush
-
-        # Stage 2: triage
-        stroke_alert = calculate_stroke_alert(responses)
-        yield _sse("triage", {"stroke_alert": stroke_alert.model_dump(mode="json")})
-        await asyncio.sleep(0)
-
-        # Stage 3: RAG
-        store = get_store()
-        rag_query = (
-            f"{candidates[0].diagnosis} {candidates[1].diagnosis} criterios diagnósticos"
-        )
-        rag_chunks = store.retrieve(rag_query, k=3)
-        rag_context = "\n\n".join(c["content"] for c in rag_chunks)
-        yield _sse("rag", {
-            "chunks_retrieved": len(rag_chunks),
-            "titles": [c["title"] for c in rag_chunks],
-        })
-        await asyncio.sleep(0)
-
-        # Stage 4: Gemma reasoning (the slow step)
-        # Run the blocking ollama.chat in a thread so we don't block the event loop.
-        llm_output = await asyncio.to_thread(
-            reason_clinically,
-            responses_summary=_format_responses_for_llm(responses),
-            rule_candidates=_format_candidates_for_llm(candidates),
-            stroke_alert=_format_stroke_alert(stroke_alert),
-            rag_context=rag_context,
-            stroke_triggered=stroke_alert.triggered,
-        )
-
-        elapsed_ms = int((time.perf_counter() - start) * 1000)
-        result = DiagnosticResult(
-            differential=candidates[:3],
-            stroke_alert=stroke_alert,
-            clinical_reasoning=llm_output.get("clinical_reasoning", ""),
-            next_steps=llm_output.get("next_steps", []),
-            limitations=llm_output.get("limitations", ""),
-            processing_time_ms=elapsed_ms,
-        )
-        yield _sse("reasoning", result.model_dump(mode="json"))
-
-        # Stage 5: complete sentinel
-        yield _sse("complete", {"processing_time_ms": elapsed_ms})
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+```bash
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
+grep -q "export async function streamDiagnose" lib/api.ts
+grep -q "ReadableStream\|getReader" lib/api.ts || grep -q "res.body.getReader" lib/api.ts
+npm run build
 ```
 
-And add this helper function (module-level, near the other `_format_*` helpers):
+---
 
-```python
-def _sse(stage: str, payload: dict) -> str:
-    """Format one Server-Sent Events frame."""
-    body = json.dumps({"stage": stage, "payload": payload}, ensure_ascii=False)
-    return f"data: {body}\n\n"
+### Task B — `PipelineProgress.tsx` component
+
+**Goal:** a self-contained component that displays the live pipeline as the SSE stream advances. Each stage has 3 visual states: `pending` (gray), `active` (spinner + animated), `done` (green check).
+
+**File:** `frontend/components/PipelineProgress.tsx` (new).
+
+**Required props:**
+
+```typescript
+type Props = {
+  /** Stages seen so far, in arrival order. Pass the names emitted by the backend. */
+  stagesSeen: string[];
+  /** True if the request is still in flight. */
+  loading: boolean;
+};
 ```
+
+**Required visual structure (use the EXACT labels in Spanish):**
+
+```
+┌────────────────────────────────────────────────┐
+│  [✓]  Reglas ICVD aplicadas                    │  ← done state
+│  [✓]  Triaje de causa central calculado        │
+│  [✓]  3 criterios ICVD recuperados             │
+│  [⏳] Gemma 4 razonando...                    │  ← active state (current)
+│         └ Modelo: gemma4:e4b · Local            │  ← muted subline
+│  [ ]  Diagnóstico listo                        │  ← pending state
+└────────────────────────────────────────────────┘
+```
+
+**Stage → label mapping (use this Map):**
+
+```typescript
+const STAGE_LABELS: Record<string, string> = {
+  rules: "Reglas ICVD aplicadas",
+  triage: "Triaje de causa central calculado",
+  rag: "Criterios ICVD recuperados",
+  model_loading: "Cargando modelo pesado (alta criticidad)",
+  reasoning: "Gemma 4 razonando",
+  complete: "Diagnóstico listo",
+};
+
+const STAGE_ORDER = ["rules", "triage", "rag", "reasoning", "complete"] as const;
+```
+
+The `model_loading` stage is **inserted between rag and reasoning** only when it appears — it signals a stroke case where the autoscaler is loading the 17 GB model. When it shows, change the `reasoning` label to "Gemma 4 (26B) razonando — caso de alta criticidad".
+
+**Behavior:**
+
+- A stage with name in `stagesSeen` and **the next stage also in `stagesSeen`** → render `done` (green ✓).
+- The last stage in `stagesSeen` while `loading=true` → render `active` (spinner + animation).
+- Stages after the active one → render `pending` (faded gray, no spinner).
+- When `loading=false` and `complete` is in `stagesSeen` → all rows done.
+
+**Animation requirements:**
+
+- Use `framer-motion`. New stages enter with `initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }}`.
+- The active stage's icon pulses subtly: `animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.2 }}`.
+- When a stage flips from active to done, the check appears with `initial={{ scale: 0.6 }} animate={{ scale: 1 }}`.
+
+**Allowed imports:**
+
+```typescript
+"use client";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, Loader2 } from "lucide-react";
+```
+
+No other imports. No shadcn primitives needed.
 
 ### Use extended thinking on
 
-1. **Why `asyncio.to_thread` for the LLM call?** The `ollama.chat()` call is blocking I/O. Running it directly inside an async generator blocks the event loop, which prevents earlier events from actually being flushed to the client — they all arrive at the end. `to_thread` offloads to a thread, freeing the event loop to push the `rules`/`triage`/`rag` events first. Verify this in your design and document it in a comment.
+1. **What if `rag` arrives before `triage`?** The backend orders them, but a slow network could reorder frames. Be defensive: use `STAGE_ORDER` to map position in the canonical order, not arrival order. A stage is "done" if any later stage has been seen.
+2. **What if the user navigates away mid-stream?** The component just unmounts; no cleanup needed. But the parent's stream subscription needs to be cancelable — note this in your final summary so the senior agent can decide later whether to add AbortController.
+3. **What if `model_loading` event never comes (non-stroke case)?** The pipeline only shows the 5 standard stages. No empty row, no placeholder.
+4. **Loading state and unmount race**: the `loading` prop comes from the parent. When the parent unmounts the component to render `ResultPanel`, the active row will never get its final check — that's fine, the result is already visible. Don't add cleanup logic.
 
-2. **Why `await asyncio.sleep(0)` between yields?** It cooperatively yields to the event loop so the response writer can flush the pending event before the next stage starts. Without it, sequential `yield` statements can be coalesced. Document this too.
-
-3. **What if the client disconnects mid-stream?** FastAPI's `StreamingResponse` handles client disconnect by raising inside the generator (the next `yield` raises). For this MVP we accept that — partial work is lost, no DB to clean up. Do NOT add complicated cleanup logic.
-
-4. **Should we add a 26B-loading event?** The autoscaler may need to evict the light model and load the heavy 17 GB model. That can take 30+ seconds the first time. **Decision: yes**, emit an extra event `{"stage": "model_loading", "payload": {"model": "gemma4:26b-a4b-it-q4_K_M"}}` ONLY when `stroke_alert.triggered` is true and right before the `reasoning` stage starts (i.e., immediately before the `asyncio.to_thread` call). This gives the frontend a chance to show "loading the heavy model — this is the big one" instead of just spinning silently.
-
-5. **JSON encoding of accented characters**: `ensure_ascii=False` in `json.dumps` is important so Spanish characters like `á`, `é` go over the wire as themselves, not as `á`. The frontend will display them correctly; smaller payload too.
-
-### Acceptance criteria
+### Acceptance
 
 ```bash
-cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/backend"
-
-# 1. Endpoint registered
-.venv/bin/python -c "from app.main import app; assert '/diagnose/stream' in [r.path for r in app.routes], 'not registered'"
-
-# 2. Existing endpoints unchanged
-.venv/bin/python -c "from app.main import app; assert '/diagnose' in [r.path for r in app.routes]"
-.venv/bin/python -c "from app.main import app; assert '/demo-cases' in [r.path for r in app.routes]"
-.venv/bin/python -c "from app.main import app; assert '/healthcheck' in [r.path for r in app.routes]"
-
-# 3. Existing tests still pass
-.venv/bin/python -m pytest tests/test_demo_cases.py -q
-# expected: 7 passed
-
-# 4. Lint clean
-.venv/bin/ruff check app/main.py
-
-# 5. Async generator wired through StreamingResponse — grep tells us the shape
-grep -q "StreamingResponse" app/main.py
-grep -q "media_type=\"text/event-stream\"" app/main.py
-grep -q "asyncio.to_thread" app/main.py
-
-# 6. SSE format helper present
-grep -q "def _sse" app/main.py
-
-# 7. The 5 stage names appear at least once (sanity that the generator covers all stages)
-for stage in rules triage rag reasoning complete; do
-  grep -q "\"$stage\"" app/main.py || { echo "missing stage: $stage"; exit 1; }
-done
-
-# 8. Optional heavy-model-loading event when stroke triggered
-grep -q "model_loading" app/main.py
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
+test -f components/PipelineProgress.tsx
+grep -q "export function PipelineProgress" components/PipelineProgress.tsx
+grep -q "Reglas ICVD aplicadas" components/PipelineProgress.tsx
+grep -q "Triaje de causa central calculado" components/PipelineProgress.tsx
+grep -q "Gemma 4 razonando" components/PipelineProgress.tsx
+grep -q "Cargando modelo pesado" components/PipelineProgress.tsx
+grep -q "AnimatePresence" components/PipelineProgress.tsx
+npm run build
 ```
 
-If you want a manual end-to-end check (optional, takes ~2 minutes with cold backend):
+---
+
+### Task C — Wire into `/demo/page.tsx`
+
+Replace the existing call:
+
+```typescript
+// OLD:
+const data = await postDiagnose(c.responses);
+
+// NEW:
+const stagesSeen: string[] = [];
+setStagesSeen([]);
+const data = await streamDiagnose(c.responses, (event) => {
+  stagesSeen.push(event.stage);
+  setStagesSeen([...stagesSeen]);
+});
+```
+
+Add state:
+
+```typescript
+const [stagesSeen, setStagesSeen] = useState<string[]>([]);
+```
+
+Replace the loading `<Card>` block with:
+
+```tsx
+{loading && (
+  <Card className="p-8">
+    <PipelineProgress stagesSeen={stagesSeen} loading={loading} />
+  </Card>
+)}
+```
+
+When `loading` flips to false (in the `finally` block), **leave `stagesSeen` as is** — the user won't see it again because the result panel takes over.
+
+**Acceptance:**
 
 ```bash
-.venv/bin/uvicorn app.main:app --port 8000 &
-until curl -fsS http://127.0.0.1:8000/healthcheck >/dev/null 2>&1; do sleep 5; done
-
-# BPPV case (light model)
-curl -N -X POST http://127.0.0.1:8000/diagnose/stream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "episode_duration": "under_1min",
-    "trigger": "position_change",
-    "hearing_status": "none",
-    "migraine_history": "none",
-    "nausea_vomiting": "nausea_only",
-    "age_bracket": "40_60",
-    "onset": "sudden",
-    "gait": "normal",
-    "neuro_red_flags": false,
-    "cv_risk": "none"
-  }'
-# expected: see `data: {"stage":"rules", ...}` printed within 1 second,
-# then `data: {"stage":"triage", ...}`, `data: {"stage":"rag", ...}`,
-# then ~5-10 second pause, then `data: {"stage":"reasoning", ...}`,
-# then `data: {"stage":"complete", ...}`.
-
-pkill -f "uvicorn app.main"
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
+grep -q "streamDiagnose" app/demo/page.tsx
+grep -q "PipelineProgress" app/demo/page.tsx
+! grep -q "await postDiagnose" app/demo/page.tsx
+npm run build
 ```
 
-Do NOT run the stroke case in this manual check — that would load the 17 GB model and you should avoid that unless explicitly asked.
+---
 
-Commit message: `feat(backend): /diagnose/stream SSE endpoint with per-stage events`.
+### Task D — Wire into `/diagnose/page.tsx` (wizard flow)
 
-Mark `D2-T06` in `backlog.yaml` as `completed` and remove the `progress_note` field that mentions the streaming work is pending.
+Same pattern. Migrate `handleSubmit`:
+
+```typescript
+const [stagesSeen, setStagesSeen] = useState<string[]>([]);
+
+const handleSubmit = async (payload: Record<string, unknown>) => {
+  setLoading(true);
+  setStagesSeen([]);
+  try {
+    const stages: string[] = [];
+    const data = await streamDiagnose(payload, (event) => {
+      stages.push(event.stage);
+      setStagesSeen([...stages]);
+    });
+    setResult(data);
+  } catch (error) {
+    alert("Hubo un error al procesar el diagnóstico.");
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+**Critical**: when `loading=true`, the parent should render `<PipelineProgress />` INSTEAD of the `QuestionWizard`'s internal spinner. The cleanest way:
+
+- If `loading && !result`, render `<Card><PipelineProgress stagesSeen={stagesSeen} loading={loading} /></Card>` in place of the wizard card.
+- The QuestionWizard's `loading={loading}` prop can stay false from the parent's perspective during this state (its internal loading view never fires).
+
+```tsx
+{!result && loading && (
+  <Card className="p-8 min-h-[400px]">
+    <PipelineProgress stagesSeen={stagesSeen} loading={loading} />
+  </Card>
+)}
+
+{!result && !loading && (
+  <Card className="p-6 min-h-[400px]">
+    <QuestionWizard ... loading={false} />
+  </Card>
+)}
+```
+
+This change is **additive** — doesn't break the wizard, just shows the pipeline view during the network round-trip.
+
+**Acceptance:**
+
+```bash
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx/frontend"
+grep -q "streamDiagnose" app/diagnose/page.tsx
+grep -q "PipelineProgress" app/diagnose/page.tsx
+! grep -q "await postDiagnose" app/diagnose/page.tsx
+npm run build
+```
+
+---
+
+### Task E — Final commit + push
+
+```bash
+cd "/Volumes/MacMiniExt/dev/OpenSource Projects/vertigoDx/vertigoDx"
+
+git status
+# Expected files modified/new ONLY:
+#   frontend/lib/api.ts                              (modified)
+#   frontend/components/PipelineProgress.tsx         (new)
+#   frontend/app/demo/page.tsx                       (modified)
+#   frontend/app/diagnose/page.tsx                   (modified)
+#
+# If ResultPanel.tsx is modified, STOP — that means a race with Sonnet.
+# If any backend/ file is modified, STOP.
+
+git push origin main
+```
+
+Commit message: `feat(frontend): live pipeline progress via SSE — judge sees the 3-layer arch in real time`.
 
 ---
 
@@ -254,35 +375,33 @@ Mark `D2-T06` in `backlog.yaml` as `completed` and remove the `progress_note` fi
 
 | Forbidden | Why |
 |---|---|
-| Modify the existing `/healthcheck`, `/demo-cases`, `/diagnose` endpoints | Frozen. |
-| Modify the `lifespan` hook | Frozen. |
-| Modify ANY `*.py` file other than `backend/app/main.py` | Out of scope. |
-| Touch ANY frontend file | Out of scope. |
-| Touch `CONTRIBUTING.md`, `SECURITY.md`, `frontend/components/OfflineBadge.tsx` | Owned by parallel agent. |
-| Add a new dependency to `pyproject.toml` | We're using only standard FastAPI + ollama + chromadb. |
-| Add WebSocket support | The contract is SSE, not WS. They are different. |
-| Add an in-memory cache or background worker | Out of scope. |
-| Run the stroke demo case during testing | Loads the 17 GB heavy model and impacts the dev Mac. |
-| Edit `AGENT_HANDOFF*.md` files | Senior owns them. |
+| Touch `backend/app/main.py` or any backend file | SSE endpoint is final. |
+| Touch `ResultPanel.tsx` | Sonnet owns the footer changes there. |
+| Remove `postDiagnose` from `lib/api.ts` | Keep it as a fallback / for tests. |
+| Add `AbortController` to the stream | Out of scope; document as TODO in summary. |
+| Add new npm dependencies | Use native fetch + framer-motion. |
+| Edit `AGENT_HANDOFF*.md` | Senior owns them. |
+| Commit `cover.*`, `icon.svg`, or anything in `public/` | Out of scope. |
+| Mark D2-T06 as anything (it's already completed) | Stay out of backlog edits. |
 
 ---
 
 ## 5. When to stop and ask
 
-1. Acceptance check fails after one fix attempt.
-2. Existing tests regress.
-3. You realize the spec contradicts itself (e.g., you can't both pass `stroke_triggered` and use `to_thread` cleanly).
-4. You're tempted to refactor any of the read-only files.
+1. Acceptance check fails.
+2. `npm run build` fails with TS errors you can't fix in 2 attempts.
+3. `git status` shows `ResultPanel.tsx` modified.
+4. The SSE stream doesn't parse correctly when you test against case_01 BPPV — that means the backend frames are malformed somehow; report rather than try to fix.
 
 ---
 
 ## 6. After it ships
 
-1. One-paragraph summary including: the exact line count added to `main.py`, whether the manual curl check was run, and what you observed.
+1. One-paragraph summary of what changed, including whether you tested manually against case_01 BPPV via the deployed app.
 2. `git log --oneline -3`.
-3. Confirm `D2-T06` in `backlog.yaml` → completed.
+3. Note any TODOs (e.g., AbortController, error rendering in PipelineProgress).
 4. Stop.
 
 ---
 
-**End of handoff.** Read once more before coding.
+**End of handoff.** This is the WOW round. Make the pipeline visible.
