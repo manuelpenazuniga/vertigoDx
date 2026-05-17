@@ -42,3 +42,68 @@ export async function postDiagnose(
   }
   return res.json();
 }
+
+/** Stage names emitted by the backend in order. */
+export type PipelineStage =
+  | "rules"
+  | "triage"
+  | "rag"
+  | "model_loading"
+  | "reasoning"
+  | "complete";
+
+export type StageEvent = {
+  stage: PipelineStage;
+  payload: Record<string, unknown>;
+};
+
+/** Stream the /diagnose/stream SSE endpoint, calling onStage for every event.
+ *  Resolves with the final DiagnosticResult once the "reasoning" stage arrives.
+ *  Throws ApiError if the stream ends without delivering a reasoning event.
+ */
+export async function streamDiagnose(
+  payload: PatientResponsesPayload,
+  onStage: (event: StageEvent) => void,
+): Promise<DiagnosticResult> {
+  const res = await fetch(`${BASE_URL}/diagnose/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(`Stream failed: ${body || res.statusText}`, res.status);
+  }
+  if (!res.body) throw new ApiError("Stream has no body");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: DiagnosticResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // SSE frames are separated by a blank line ("\n\n").
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      if (!frame.startsWith("data: ")) continue;
+      const json = frame.slice(6);
+      let parsed: StageEvent;
+      try {
+        parsed = JSON.parse(json) as StageEvent;
+      } catch {
+        continue; // skip malformed frames defensively
+      }
+      onStage(parsed);
+      if (parsed.stage === "reasoning") {
+        result = parsed.payload as unknown as DiagnosticResult;
+      }
+    }
+  }
+
+  if (!result) throw new ApiError("Stream ended without reasoning event");
+  return result;
+}

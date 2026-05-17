@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { QuestionWizard } from "@/components/QuestionWizard";
+import { PipelineProgress } from "@/components/PipelineProgress";
 import { ResultPanel } from "@/components/ResultPanel";
 import { OfflineBadge } from "@/components/OfflineBadge";
 import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
-import { postDiagnose } from "@/lib/api";
+import { streamDiagnose } from "@/lib/api";
 import type { DiagnosticResult } from "@/lib/types";
 
 export default function DiagnosePage() {
@@ -14,6 +15,7 @@ export default function DiagnosePage() {
   const [responses, setResponses] = useState<Record<string, string | boolean>>({});
   const [result, setResult] = useState<DiagnosticResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [stagesSeen, setStagesSeen] = useState<string[]>([]);
 
   const handleAnswer = (field: string, value: string | boolean) => {
     setResponses((prev) => ({ ...prev, [field]: value }));
@@ -24,8 +26,13 @@ export default function DiagnosePage() {
 
   const handleSubmit = async (payload: Record<string, unknown>) => {
     setLoading(true);
+    setStagesSeen([]);
     try {
-      const data = await postDiagnose(payload);
+      const stages: string[] = [];
+      const data = await streamDiagnose(payload, (event) => {
+        stages.push(event.stage);
+        setStagesSeen([...stages]);
+      });
       setResult(data);
     } catch (error) {
       alert("Hubo un error al procesar el diagnóstico.");
@@ -47,16 +54,25 @@ export default function DiagnosePage() {
       {!result && (
         <div className="space-y-4 mt-8">
           <Progress value={(step / 10) * 100} />
-          <Card className="p-6 min-h-[400px]">
-            <QuestionWizard
-              step={step}
-              responses={responses}
-              onAnswer={handleAnswer}
-              onComplete={handleSubmit}
-              onBack={handleBack}
-              loading={loading}
-            />
-          </Card>
+
+          {!loading && (
+            <Card className="p-6 min-h-[400px]">
+              <QuestionWizard
+                step={step}
+                responses={responses}
+                onAnswer={handleAnswer}
+                onComplete={handleSubmit}
+                onBack={handleBack}
+                loading={false}
+              />
+            </Card>
+          )}
+
+          {loading && (
+            <Card className="p-8 min-h-[400px]">
+              <PipelineProgress stagesSeen={stagesSeen} loading={loading} />
+            </Card>
+          )}
         </div>
       )}
 

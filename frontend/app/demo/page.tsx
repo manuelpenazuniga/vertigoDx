@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 import { OfflineBadge } from "@/components/OfflineBadge";
+import { PipelineProgress } from "@/components/PipelineProgress";
 import { ResultPanel } from "@/components/ResultPanel";
-import { fetchDemoCases, postDiagnose } from "@/lib/api";
+import { fetchDemoCases, streamDiagnose } from "@/lib/api";
 import type { DemoCase, DiagnosticResult } from "@/lib/types";
 
 export default function DemoPage() {
@@ -18,6 +19,7 @@ export default function DemoPage() {
   const [result, setResult] = useState<DiagnosticResult | null>(null);
   const [selectedCase, setSelectedCase] = useState<DemoCase | null>(null);
   const [loading, setLoading] = useState(false);
+  const [stagesSeen, setStagesSeen] = useState<string[]>([]);
 
   useEffect(() => {
     fetchDemoCases()
@@ -30,8 +32,13 @@ export default function DemoPage() {
   async function runCase(c: DemoCase) {
     setLoading(true);
     setSelectedCase(c);
+    setStagesSeen([]);
     try {
-      const data = await postDiagnose(c.responses);
+      const stages: string[] = [];
+      const data = await streamDiagnose(c.responses, (event) => {
+        stages.push(event.stage);
+        setStagesSeen([...stages]);
+      });
       setResult(data);
     } catch (err) {
       console.error(err);
@@ -72,11 +79,8 @@ export default function DemoPage() {
         </div>
 
         {loading && (
-          <Card className="p-8 text-center">
-            <p className="font-medium">Procesando con Gemma 4...</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Aplicando criterios ICVD · Calculando triaje · Generando razonamiento
-            </p>
+          <Card className="p-8">
+            <PipelineProgress stagesSeen={stagesSeen} loading={loading} />
           </Card>
         )}
 
