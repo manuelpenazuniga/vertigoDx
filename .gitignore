@@ -29,8 +29,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# NOTE: do NOT add `lib/` here — frontend/lib/ is a tracked source directory.
+# Python virtualenv `lib/` is already covered by .venv/ below.
 parts/
 sdist/
 var/

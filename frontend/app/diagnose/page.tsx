@@ -52,7 +52,7 @@ export default function DiagnosePage() {
               step={step}
               responses={responses}
               onAnswer={handleAnswer}
-              onComplete={() => handleSubmit(responses)}
+              onComplete={handleSubmit}
               onBack={handleBack}
               loading={loading}
             />
