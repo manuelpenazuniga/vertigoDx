@@ -1,5 +1,7 @@
 <div align="center">
 
+![VertigoDx — Privacy-first vestibular diagnosis AI](frontend/public/cover.png)
+
 # VertigoDx
 
 ### Privacy-first vestibular diagnosis AI for underserved Latin American clinics
@@ -10,13 +12,14 @@
 [![Ollama](https://img.shields.io/badge/Ollama-Local-000000?logo=ollama&logoColor=white)](https://ollama.com)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org)
-[![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB-4B0082)](https://www.trychroma.com)
-[![Status](https://img.shields.io/badge/Status-MVP_in_progress-orange.svg)](#roadmap)
+[![Contributing](https://img.shields.io/badge/Contributing-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Security](https://img.shields.io/badge/Security-policy-red.svg)](SECURITY.md)
 [![Hackathon](https://img.shields.io/badge/Gemma_4_Good-Hackathon_2026-FF6F61)](https://www.kaggle.com/competitions/gemma-4-good-hackathon)
 
-[**Demo video**](#see-it-in-action) · [**Quickstart**](#quickstart-60-seconds) · [**Architecture**](#how-it-works) · [**Roadmap**](#roadmap) · [**Limitations**](#honest-limitations)
+[**Demo video**](#see-it-in-action) · [**Quickstart**](#quickstart-60-seconds) · [**Architecture**](#how-it-works) · [**Roadmap**](#roadmap) · [**Limitations**](#honest-limitations) · [**Contributing**](CONTRIBUTING.md)
 
 </div>
 
@@ -74,6 +77,8 @@ A primary care physician answers **10 evidence-based questions** about a vertigo
 | **Honest limitations** | What additional data would strengthen the diagnosis |
 
 All running locally on the clinician's machine. **No patient data ever leaves the device.**
+
+There is also a `POST /diagnose/stream` endpoint that emits Server-Sent Events for each pipeline stage (`rules` → `triage` → `rag` → `reasoning`), so the UI shows the system thinking in real time instead of spinning silently during the 3-5-second Gemma inference. When the stroke alert triggers, an extra `model_loading` event tells the frontend the heavy `26B` model is being swapped in.
 
 ---
 
@@ -236,6 +241,8 @@ vertigoDx/
 ├── backlog.yaml            Machine-readable execution backlog (4-day plan)
 ├── CLAUDE.md               Repository invariants for AI coding agents
 ├── AGENT_HANDOFF.md        Scoped task assignment for delegated sub-agents
+├── CONTRIBUTING.md         How to contribute (post-hackathon)
+├── SECURITY.md             Vulnerability + clinical-safety reporting
 ├── LICENSE                 Apache 2.0 (matches Gemma 4)
 └── README.md               You are here
 ```

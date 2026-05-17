@@ -60,12 +60,16 @@ backend/
 frontend/
   app/               Next.js App Router pages
   components/        shadcn/ui components + custom
-  lib/               Shared helpers (questions.ts, etc.)
+  lib/               types.ts, api.ts, questions.ts, utils.ts (shadcn cn helper)
+  public/            cover.svg + cover.png (Kaggle submission gallery), icon.svg
 data/
   demo_cases.json    5 scripted clinical cases (the video script)
 backlog.yaml         Machine-readable execution backlog for the 4-day plan
 README.md            Public-facing project README
 CLAUDE.md            This file
+AGENT_HANDOFF.md     Routing index for delegated sub-agents
+CONTRIBUTING.md      How to contribute (post-hackathon workflow)
+SECURITY.md          Vulnerability + clinical-safety reporting
 LICENSE              Apache 2.0
 ```
 

@@ -939,7 +939,8 @@ tasks:
       - "Script word count between 270 and 310"
       - "Script explicitly mentions Gemma 4, Ollama, ICVD, HINTS, and a WiFi-disconnect moment"
     dependencies: ["D4-T01"]
-    status: pending
+    status: completed
+    progress_note: "Drafted by senior agent (Opus 4.7); lives in docs/working/video_script_v1.md (gitignored). 392 net voiceover words, ~3:00 at 140wpm with marked pauses."
 
   - id: D4-T03
     day: 4
@@ -1078,7 +1079,8 @@ tasks:
       - "Title and subtitle present"
       - "Every section header present"
     dependencies: ["D4-T01"]
-    status: pending
+    status: completed
+    progress_note: "Drafted by senior agent (Opus 4.7); lives in docs/working/writeup_v1.md (gitignored). 1459 words, under the 1500 limit with 41-word safety margin. Six sections: Problem (272) / Why Gemma 4 (197) / Architecture (336) / Implementation (259) / Impact (222) / Limitations (146)."
 
   - id: D4-T10
     day: 4
