@@ -49,7 +49,7 @@
 
 ### What that means for LATAM
 
-- **<30** otoneurology subspecialists in Chile (population: 19M), almost all in Santiago<sup>[4]</sup>
+- **~400** ENT specialists in Chile for 19M people, only ~150 in the public system, almost all in Santiago<sup>[4]</sup>
 - **260,757** patients on ENT specialist waitlists in Chile<sup>[5]</sup>
 - **Zero** national vestibular triage guidelines in Latin America (except ACORL Colombia 2024)
 - **~20%** of general practitioners feel trained to diagnose BPPV, the most common and most treatable cause<sup>[6]</sup>
