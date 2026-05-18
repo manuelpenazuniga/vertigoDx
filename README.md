@@ -1,6 +1,6 @@
 <div align="center">
 
-![VertigoDx: Privacy-first vestibular diagnosis AI](frontend/public/cover.png)
+![VertigoDx: Offline AI vertigo triage for primary care](frontend/public/cover.png?v=2)
 
 # VertigoDx
 
