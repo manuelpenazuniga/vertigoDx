@@ -19,14 +19,8 @@ const STAGE_LABELS: Record<string, string> = {
   complete: "Diagnóstico listo",
 };
 
-/** Canonical pipeline order. model_loading is optional and inserted dynamically. */
 const STAGE_ORDER = ["rules", "triage", "rag", "reasoning", "complete"] as const;
 
-/**
- * Build the display list of stages. If model_loading has been seen, splice
- * it between rag and reasoning. This way non-stroke cases show 5 rows and
- * stroke cases show 6.
- */
 function buildDisplayStages(stagesSeen: string[]): string[] {
   const stages: string[] = [...STAGE_ORDER];
   if (stagesSeen.includes("model_loading")) {
@@ -36,16 +30,6 @@ function buildDisplayStages(stagesSeen: string[]): string[] {
   return stages;
 }
 
-/**
- * Determine the visual state of each stage.
- *
- * DEFENSIVE ORDERING: We use the canonical display list positions rather than
- * arrival order from the network. A stage is "done" if any stage appearing
- * later in the canonical order has also been seen. This handles the (unlikely)
- * case where a slow network reorders SSE frames — e.g. rag arriving before
- * triage. The last seen stage (by canonical position) while loading=true is
- * the "active" one. Everything after it is "pending".
- */
 function getStageState(
   stage: string,
   displayStages: string[],
@@ -57,32 +41,18 @@ function getStageState(
 
   if (!seen) return "pending";
 
-  // Find the highest canonical index among all seen stages.
-  let maxSeenIdx = -1;
-  for (const s of stagesSeen) {
-    const idx = displayStages.indexOf(s);
-    if (idx > maxSeenIdx) maxSeenIdx = idx;
-  }
-
-  // If a stage later than this one has been seen, this stage is done.
   const hasLaterStageSeen = stagesSeen.some(
     (s) => displayStages.indexOf(s) > stageIdx,
   );
 
   if (hasLaterStageSeen) return "done";
 
-  // This is the latest seen stage.
   if (!loading && stage === "complete") return "done";
   if (loading) return "active";
 
-  // loading=false but not complete — edge case, treat as done.
   return "done";
 }
 
-/**
- * Get the label for a stage, with special handling for reasoning when
- * model_loading has been seen (stroke case → heavy 26B model).
- */
 function getStageLabel(stage: string, isHeavyModel: boolean): string {
   if (stage === "reasoning" && isHeavyModel) {
     return "Gemma 4 (26B) razonando — caso de alta criticidad";
@@ -95,99 +65,104 @@ export function PipelineProgress({ stagesSeen, loading }: Props) {
   const isHeavyModel = stagesSeen.includes("model_loading");
 
   return (
-    <div className="space-y-1">
-      <h3 className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wide">
+    <div>
+      <h3 className="mb-5 font-heading text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         Pipeline de diagnóstico
       </h3>
-      <AnimatePresence mode="popLayout">
-        {displayStages.map((stage) => {
-          const state = getStageState(stage, displayStages, stagesSeen, loading);
-          const label = getStageLabel(stage, isHeavyModel);
+      <div className="relative space-y-0">
+        {/* Vertical connector line behind icons */}
+        <div
+          className="absolute left-3 top-3 bottom-3 w-px bg-border/60"
+          aria-hidden
+        />
 
-          return (
-            <motion.div
-              key={stage}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.25 }}
-              className="flex items-start gap-3 py-2"
-            >
-              {/* Icon column */}
-              <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center mt-0.5">
-                {state === "done" && (
-                  <motion.div
-                    initial={{ scale: 0.6 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                  >
-                    <Check className="w-5 h-5 text-emerald-500" />
-                  </motion.div>
-                )}
-                {state === "active" && (
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ repeat: Infinity, duration: 1.2 }}
-                  >
-                    <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                  </motion.div>
-                )}
-                {state === "pending" && (
-                  <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-600" />
-                )}
-              </div>
+        <AnimatePresence mode="popLayout">
+          {displayStages.map((stage) => {
+            const state = getStageState(stage, displayStages, stagesSeen, loading);
+            const label = getStageLabel(stage, isHeavyModel);
 
-              {/* Label column */}
-              <div className="flex-1 min-w-0">
-                <p
-                  className={`text-sm font-medium leading-tight ${
-                    state === "done"
-                      ? "text-emerald-700 dark:text-emerald-400"
-                      : state === "active"
-                        ? "text-blue-700 dark:text-blue-400"
-                        : "text-slate-400 dark:text-slate-500"
-                  }`}
-                >
-                  {label}
-                  {state === "active" && "..."}
-                </p>
+            return (
+              <motion.div
+                key={stage}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.22 }}
+                className="relative flex items-start gap-3 py-2.5"
+              >
+                {/* Icon column with background to mask the connector line */}
+                <div className="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border/60">
+                  {state === "done" && (
+                    <motion.div
+                      initial={{ scale: 0.6, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                      className="flex size-full items-center justify-center rounded-full bg-accent/15 ring-1 ring-accent/30"
+                    >
+                      <Check className="size-3 text-accent" strokeWidth={3} />
+                    </motion.div>
+                  )}
+                  {state === "active" && (
+                    <div className="flex size-full items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/30">
+                      <Loader2 className="size-3 animate-spin text-primary" strokeWidth={2.5} />
+                    </div>
+                  )}
+                  {state === "pending" && (
+                    <div className="size-2 rounded-full bg-muted-foreground/30" />
+                  )}
+                </div>
 
-                {/* Subline for reasoning stage when active */}
-                {stage === "reasoning" && state === "active" && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-xs text-muted-foreground mt-0.5"
+                {/* Label column */}
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={`text-sm font-medium leading-tight transition-colors ${
+                      state === "done"
+                        ? "text-foreground"
+                        : state === "active"
+                          ? "text-primary"
+                          : "text-muted-foreground/60"
+                    }`}
                   >
-                    Modelo: {isHeavyModel ? "gemma4:26b-a4b-it-q4_K_M" : "gemma4:e4b"} · Local
-                  </motion.p>
-                )}
+                    {label}
+                    {state === "active" && (
+                      <span className="ml-0.5 inline-block animate-pulse">…</span>
+                    )}
+                  </p>
 
-                {/* Subline for model_loading when active */}
-                {stage === "model_loading" && state === "active" && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-xs text-muted-foreground mt-0.5"
-                  >
-                    Cargando ~17 GB en memoria · Esto puede tardar 30+ segundos
-                  </motion.p>
-                )}
+                  {stage === "reasoning" && state === "active" && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="mt-0.5 font-mono text-[11px] text-muted-foreground tabular-nums"
+                    >
+                      Modelo: {isHeavyModel ? "gemma4:26b-a4b-it-q4_K_M" : "gemma4:e4b"} · Local
+                    </motion.p>
+                  )}
 
-                {/* RAG subline when done — show chunk count */}
-                {stage === "rag" && state === "done" && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-xs text-muted-foreground mt-0.5"
-                  >
-                    3 criterios ICVD recuperados
-                  </motion.p>
-                )}
-              </div>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+                  {stage === "model_loading" && state === "active" && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="mt-0.5 text-[11px] text-muted-foreground"
+                    >
+                      Cargando ~17 GB en memoria · Esto puede tardar 30+ segundos
+                    </motion.p>
+                  )}
+
+                  {stage === "rag" && state === "done" && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="mt-0.5 text-[11px] text-muted-foreground"
+                    >
+                      3 criterios ICVD recuperados
+                    </motion.p>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

@@ -25,9 +25,6 @@ export function QuestionWizard({
   loading,
   onBack,
 }: QuestionWizardProps) {
-  // Internal step tracking — the parent may not bump `step` on every
-  // onAnswer call. When the parent starts managing step externally,
-  // the useEffect below will keep this in sync.
   const [internalStep, setInternalStep] = useState(step);
 
   const question = QUESTIONS[internalStep];
@@ -40,14 +37,10 @@ export function QuestionWizard({
       : undefined
   );
 
-  // Sync with parent's step prop when it changes
   useEffect(() => {
     setInternalStep(step);
   }, [step]);
 
-  // Reset currentValue when the active step changes — handles both
-  // forward navigation and back-then-forward where a prior answer
-  // should pre-select.
   useEffect(() => {
     const q = QUESTIONS[internalStep];
     if (q) {
@@ -55,20 +48,18 @@ export function QuestionWizard({
     }
   }, [internalStep, responses]);
 
-  // Loading state: full-card spinner, hiding the question UI entirely
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[300px] space-y-4">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="text-lg font-medium">Analizando con Gemma 4...</p>
-        <p className="text-sm text-muted-foreground text-center">
+      <div className="flex min-h-[300px] flex-col items-center justify-center space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" strokeWidth={1.75} />
+        <p className="font-heading text-lg font-medium">Analizando con Gemma 4</p>
+        <p className="text-center text-sm text-muted-foreground">
           Aplicando criterios ICVD · Calculando triaje · Generando razonamiento
         </p>
       </div>
     );
   }
 
-  // Defensive: out-of-range step
   if (!question) return null;
 
   const isLastStep = internalStep === QUESTIONS.length - 1;
@@ -91,27 +82,30 @@ export function QuestionWizard({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       <AnimatePresence mode="wait">
         <motion.div
           key={internalStep}
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.2 }}
+          exit={{ opacity: 0, x: -16 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
           className="flex-1"
         >
           {/* Step counter */}
-          <p className="text-sm text-muted-foreground mb-1">
-            Pregunta {internalStep + 1} de {QUESTIONS.length}
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Pregunta {internalStep + 1} <span className="opacity-60">de</span>{" "}
+            {QUESTIONS.length}
           </p>
 
           {/* Question title */}
-          <h2 className="text-2xl font-semibold">{question.title}</h2>
+          <h2 className="mt-2 font-heading text-2xl font-semibold leading-snug tracking-tight text-foreground">
+            {question.title}
+          </h2>
 
           {/* Optional description */}
           {question.description && (
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {question.description}
             </p>
           )}
@@ -121,42 +115,50 @@ export function QuestionWizard({
             <RadioGroup
               value={typeof currentValue === "string" ? currentValue : ""}
               onValueChange={(val: string) => setCurrentValue(val)}
-              className="mt-6 space-y-3"
+              className="mt-6 space-y-2.5"
             >
-              {question.options.map((opt) => (
-                <label
-                  key={opt.value}
-                  htmlFor={`${question.field}-${opt.value}`}
-                  className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer transition-colors"
-                >
-                  <RadioGroupItem
-                    value={opt.value}
-                    id={`${question.field}-${opt.value}`}
-                  />
-                  <Label
+              {question.options.map((opt) => {
+                const isSelected = currentValue === opt.value;
+                return (
+                  <label
+                    key={opt.value}
                     htmlFor={`${question.field}-${opt.value}`}
-                    className="cursor-pointer flex-1"
+                    data-state={isSelected ? "checked" : "unchecked"}
+                    className="group flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3.5 transition-all
+                      border-border bg-card
+                      hover:border-primary/40 hover:bg-primary/5
+                      data-[state=checked]:border-primary data-[state=checked]:bg-primary/8 data-[state=checked]:ring-2 data-[state=checked]:ring-primary/15
+                      has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/40"
                   >
-                    {opt.label}
-                  </Label>
-                </label>
-              ))}
+                    <RadioGroupItem
+                      value={opt.value}
+                      id={`${question.field}-${opt.value}`}
+                    />
+                    <Label
+                      htmlFor={`${question.field}-${opt.value}`}
+                      className="flex-1 cursor-pointer text-sm font-normal leading-relaxed text-foreground group-data-[state=checked]:font-medium"
+                    >
+                      {opt.label}
+                    </Label>
+                  </label>
+                );
+              })}
             </RadioGroup>
           )}
 
           {/* Boolean: two large buttons */}
           {question.type === "boolean" && (
-            <div className="grid grid-cols-2 gap-3 mt-6">
+            <div className="mt-6 grid grid-cols-2 gap-3">
               <Button
                 variant={currentValue === false ? "default" : "outline"}
-                className="h-20 text-base"
+                className="h-20 text-base font-medium"
                 onClick={() => setCurrentValue(false)}
               >
                 No
               </Button>
               <Button
                 variant={currentValue === true ? "default" : "outline"}
-                className="h-20 text-base"
+                className="h-20 text-base font-medium"
                 onClick={() => setCurrentValue(true)}
               >
                 Sí
@@ -167,10 +169,10 @@ export function QuestionWizard({
       </AnimatePresence>
 
       {/* Footer navigation */}
-      <div className="flex justify-between mt-6 pt-4 border-t">
+      <div className="mt-8 flex items-center justify-between border-t border-border/60 pt-4">
         {internalStep > 0 ? (
-          <Button variant="ghost" onClick={handleBack}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
+          <Button variant="ghost" onClick={handleBack} className="text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="mr-1 size-4" />
             Atrás
           </Button>
         ) : (
@@ -179,13 +181,14 @@ export function QuestionWizard({
         <Button
           onClick={handleNext}
           disabled={currentValue === undefined}
+          className="px-5"
         >
           {isLastStep ? (
             "Diagnosticar"
           ) : (
             <>
               Siguiente
-              <ChevronRight className="h-4 w-4 ml-1" />
+              <ChevronRight className="ml-1 size-4" />
             </>
           )}
         </Button>
