@@ -239,8 +239,6 @@ vertigoDx/
 ├── data/
 │   └── demo_cases.json     5 scripted clinical cases (the video script)
 ├── backlog.yaml            Machine-readable execution backlog (4-day plan)
-├── CLAUDE.md               Repository invariants for AI coding agents
-├── AGENT_HANDOFF.md        Scoped task assignment for delegated sub-agents
 ├── CONTRIBUTING.md         How to contribute (post-hackathon)
 ├── SECURITY.md             Vulnerability + clinical-safety reporting
 ├── LICENSE                 Apache 2.0 (matches Gemma 4)

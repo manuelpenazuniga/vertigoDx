@@ -156,3 +156,10 @@ temp/
 # ---- Local task / agent state ---------------------------------------------
 .claude/
 .cursor/
+
+# ---- AI-agent instruction files (kept local, never published) -------------
+# These guide coding agents (Claude, Cursor, etc.) but are not relevant to
+# the public submission. They live on disk for local use only.
+CLAUDE.md
+AGENT_HANDOFF.md
+AGENT_HANDOFF_*.md
