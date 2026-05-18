@@ -15,11 +15,15 @@
         font-size="108" font-weight="800" text-anchor="middle" dominant-baseline="auto"
         fill="#ffffff" letter-spacing="-2">VertigoDx</text>
 
-  <!-- Subtitle -->
-  <text x="640" y="330"
+  <!-- Subtitle (two lines, smaller font so it fits) -->
+  <text x="640" y="318"
         font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
-        font-size="28" font-weight="500" text-anchor="middle" dominant-baseline="auto"
-        fill="#ffffff" opacity="0.85">Privacy-First Vestibular Diagnosis AI for Underserved Latin American Clinics</text>
+        font-size="22" font-weight="500" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff" opacity="0.85">Bringing ICVD + HINTS subspecialist reasoning to underserved Latin American primary care</text>
+  <text x="640" y="350"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="500" text-anchor="middle" dominant-baseline="auto"
+        fill="#ffffff" opacity="0.85">via Gemma 4, 100% offline, in Spanish</text>
 
   <!-- Chip row: 3 pills, each 200x56, gap 24, total width = 648, centered at x=640 -->
   <!-- Chip 1: Gemma 4 (blue) -->

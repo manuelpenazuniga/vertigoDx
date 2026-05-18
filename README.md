@@ -19,7 +19,7 @@
 [![Security](https://img.shields.io/badge/Security-policy-red.svg)](SECURITY.md)
 [![Hackathon](https://img.shields.io/badge/Gemma_4_Good-Hackathon_2026-FF6F61)](https://www.kaggle.com/competitions/gemma-4-good-hackathon)
 
-[**Demo video**](#see-it-in-action) · [**Quickstart**](#quickstart-60-seconds) · [**Architecture**](#how-it-works) · [**Roadmap**](#roadmap) · [**Limitations**](#honest-limitations) · [**Contributing**](CONTRIBUTING.md)
+[**Quickstart**](#quickstart-60-seconds) · [**Architecture**](#how-it-works) · [**Demo scenarios**](#demo-scenarios) · [**Roadmap**](#roadmap) · [**Limitations**](#honest-limitations) · [**Contributing**](CONTRIBUTING.md)
 
 </div>
 
@@ -203,9 +203,9 @@ The implementation lives in [`backend/app/llm.py`](backend/app/llm.py) — `pick
 
 ---
 
-## See it in action
+## Demo scenarios
 
-The 3-minute demo walks through five real-world scenarios:
+VertigoDx ships with five scripted clinical cases (`data/demo_cases.json`) that exercise the full pipeline end-to-end:
 
 1. **Classic BPPV in a 52-year-old** — Epley maneuver recommended
 2. **Probable Ménière's disease** with fluctuating hearing loss
@@ -213,7 +213,7 @@ The 3-minute demo walks through five real-world scenarios:
 4. **Cerebellar stroke** — the dramatic case. Watch the red alert trigger.
 5. **VM + Ménière comorbidity** — where Gemma's reasoning shines
 
-> 🎥 **Demo video will be embedded here after upload.** Submitted to the Gemma 4 Good Hackathon · May 2026.
+Run them locally from the `/demo` page after starting the backend and frontend (see [Quickstart](#quickstart-60-seconds)). The same cases double as `pytest` fixtures and are the ground truth for the rule engine: 100% top-1 diagnostic agreement and stroke-alert triggering across the set.
 
 ---
 
@@ -233,7 +233,7 @@ vertigoDx/
 │   │   └── data/
 │   │       └── icvd_corpus.md  ICVD criteria corpus used for RAG
 │   └── tests/              pytest — 5 demo cases as ground truth
-├── frontend/               Next.js 14 (App Router) + shadcn/ui
+├── frontend/               Next.js 16 (App Router) + shadcn/ui
 │   ├── app/                Pages: landing, /diagnose, /demo, /result
 │   └── components/         QuestionWizard, ResultPanel, StrokeAlert, OfflineBadge
 ├── data/
@@ -276,7 +276,7 @@ vertigoDx/
 <td valign="top" width="33%">
 
 **Frontend**
-- Next.js 14 (App Router)
+- Next.js 16 (App Router)
 - TypeScript (strict mode)
 - shadcn/ui + Tailwind CSS
 - Framer Motion (transitions)
